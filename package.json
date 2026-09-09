@@ -1,0 +1,29 @@
+{
+  "name": "config-agent-kit",
+  "version": "0.3.2",
+  "author": "FriendlyNGeeks",
+  "license": "MIT",
+  "description": "Interactive, project-aware AGENTS.md scaffolding with safe updates and diagnostics",
+  "type": "module",
+  "bin": {
+    "config-agent-kit": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "examples",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0"
+  }
+}

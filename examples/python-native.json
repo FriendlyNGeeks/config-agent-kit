@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "projectName": "native-worker",
+  "capabilities": ["python", "native"],
+  "packageManager": "none",
+  "database": "none",
+  "apps": [],
+  "commands": { "verify": [] },
+  "deployment": { "kind": "none" },
+  "workflow": "validate"
+}

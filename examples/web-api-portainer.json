@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "projectName": "my-service",
+  "capabilities": [
+    "web",
+    "api"
+  ],
+  "packageManager": "pnpm",
+  "database": "postgres",
+  "apps": [],
+  "commands": {
+    "verify": []
+  },
+  "deployment": {
+    "kind": "portainer",
+    "host": "pihole.mydomain.com",
+    "stackName": "my-service",
+    "composeFile": "portainer.yml"
+  },
+  "workflow": "validate",
+  "operations": {
+    "dockerWorkflow": "docker-first",
+    "dockerComposeFile": "docker-compose.yml",
+    "changelogUpdate": true,
+    "dockerRebuild": true,
+    "electron": false,
+    "electronRebuild": false,
+    "portainerStackUpdate": true,
+    "portainerCredentialSource": "homepage",
+    "homepageHost": "MY_HOMEPAGE_HOST",
+    "homepagePath": "/config/APP/Portainer/services.yml"
+  },
+  "publishing": {
+    "dockerHubUsername": "MrRobot",
+    "architecture": "arm64"
+  }
+}
