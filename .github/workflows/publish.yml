@@ -38,9 +38,10 @@ jobs:
 
       - name: Verify release version
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
         run: |
-          node --input-type=module -e 'import { readFileSync } from "node:fs"; const { version } = JSON.parse(readFileSync("package.json", "utf8")); if (process.env.RELEASE_TAG !== version && process.env.RELEASE_TAG !== `v${version}`) { throw new Error(`Release tag must match package version ${version}`); }'
+          node --input-type=module -e 'import { readFileSync } from "node:fs"; const { version } = JSON.parse(readFileSync("package.json", "utf8")); if (process.env.RELEASE_REF_TYPE !== "tag") { throw new Error("Run this workflow on a version tag, not a branch."); } if (process.env.RELEASE_TAG !== version && process.env.RELEASE_TAG !== `v${version}`) { throw new Error(`Tag ${process.env.RELEASE_TAG} must match package version ${version}`); }'
 
       - name: Run tests and build
         run: npm test
@@ -48,5 +49,5 @@ jobs:
       # Configure this repository and publish.yml as a trusted publisher on npm.
       - name: Publish package
         env:
-          NPM_DIST_TAG: ${{ github.event.release.prerelease && 'next' || 'latest' }}
+          NPM_DIST_TAG: ${{ contains(github.ref_name, '-') && 'next' || 'latest' }}
         run: npm publish --access public --tag "$NPM_DIST_TAG"
