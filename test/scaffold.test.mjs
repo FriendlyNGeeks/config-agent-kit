@@ -30,6 +30,32 @@ const get = (root, file) => fs.readFileSync(path.join(root, file), 'utf8');
 const run = (...args) => spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', timeout: 10000 });
 const base = () => ({ schemaVersion: 1, projectName: 'sample', capabilities: ['web'], packageManager: 'npm', database: 'none', apps: [], commands: { verify: [] }, deployment: { kind: 'none' }, workflow: 'validate' });
 
+test('completion summary reports successful writes and no-op updates, but not previews or JSON', () => {
+  const root = fixture();
+  const preview = run('init', root, '--dry-run');
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.doesNotMatch(preview.stdout, /Completion summary/);
+  const created = run('init', root, '--yes');
+  assert.equal(created.status, 0, created.stderr);
+  assert.match(created.stdout, /Completion summary/);
+  assert.match(created.stdout, /Files: [1-9]\d* created, 0 updated, 0 deleted/);
+  assert.match(created.stdout, /Active guidance: \d+ roles, \d+ skills/);
+  assert.ok(created.stdout.includes(root));
+  assert.ok(created.stdout.includes(`npx config-agent-kit@${VERSION} doctor .`));
+  const updated = run('update', root);
+  assert.equal(updated.status, 0, updated.stderr);
+  assert.match(updated.stdout, /Files: 0 created, 0 updated, 0 deleted/);
+  assert.match(updated.stdout, /already up to date/);
+  const machine = run('update', root, '--yes', '--json');
+  assert.equal(machine.status, 0, machine.stderr);
+  assert.equal(JSON.parse(machine.stdout).written, true);
+  assert.doesNotMatch(machine.stdout, /Completion summary/);
+  put(root, '.agents/roles/architect.md', 'Custom instructions');
+  const conflict = run('update', root);
+  assert.equal(conflict.status, 2);
+  assert.doesNotMatch(conflict.stdout, /Completion summary/);
+});
+
 test('detects frontend-only npm project without introducing Electron or API', () => {
   const root = fixture();
   put(root, 'package.json', { name: 'persona', scripts: { lint: 'eslint .', build: 'vite build' }, dependencies: { react: '1', vite: '1' } });

@@ -11,22 +11,22 @@ export async function questionnaire(defaults: Config, io: PromptIO = terminalIO,
   const { ask, pick, yesNo } = session;
   const stdout = io.output;
   const composePath = async (label: string, fallback?: string) => {
-    stdout.write(`\n${COMPOSE_HELP}\n`);
+    stdout.write(session.paint('info', `\n${COMPOSE_HELP}\n`));
     const value = await ask(label, fallback ?? '');
     return value === '-' || !value ? undefined : value;
   };
   try {
-    stdout.write('\nAgent Kit — project configuration\nConfigures AGENTS.md and selected roles and skills.\n');
+    stdout.write(session.paint('heading', '\nAgent Kit — project configuration\nConfigures AGENTS.md and selected roles and skills.\n'));
     let config = structuredClone(defaults);
     if (options.askAgent) config.preferredAgent = await pick('Preferred coding agent', PREFERRED_AGENTS, config.preferredAgent, Object.fromEntries(PREFERRED_AGENTS.map(a => [a, AGENT_PROFILES[a].label])));
     if (options.mode === 'vibe') {
       if (!options.capabilitiesKnown) await clarifySurface(config, session);
-      stdout.write('\nDescribe features in your own words. Your agent handles routine validation, secrets and data protection. You can revisit settings with update --interactive --prompt-mode pro.\n');
+      stdout.write(session.paint('info', '\nDescribe features in your own words. Your agent handles routine validation, secrets and data protection. You can revisit settings with update --interactive --prompt-mode pro.\n'));
       return validateConfig(config);
     }
     while (true) {
       if (!options.skipIdentity) config.projectName = await ask('Project name', config.projectName);
-      stdout.write(`\nCapabilities: ${CAPABILITIES.map((c, i) => `${i + 1}=${c}`).join(', ')}\n`);
+      stdout.write(session.paint('info', `\nCapabilities: ${CAPABILITIES.map((c, i) => `${i + 1}=${c}`).join(', ')}\n`));
       const answer = await ask('Select names or numbers separated by commas', config.capabilities.join(','));
       config.capabilities = answer.split(',').map(s => s.trim()).map(s => CAPABILITIES[Number(s) - 1] ?? s) as Config['capabilities'];
       config.packageManager = await pick('Package manager', MANAGERS, config.packageManager);
@@ -65,7 +65,7 @@ export async function questionnaire(defaults: Config, io: PromptIO = terminalIO,
           ops.homepageHost = await ask('SSH host holding Homepage widgets', ops.homepageHost);
           do {
             ops.homepagePath = await ask('Absolute path to your Homepage services.yaml on that SSH host (required; only the matching widget will be read)', ops.homepagePath);
-            if (!ops.homepagePath) stdout.write('Enter your services.yaml path to use Homepage credential lookup.\n');
+            if (!ops.homepagePath) stdout.write(session.paint('warning', 'Enter your services.yaml path to use Homepage credential lookup.\n'));
           } while (!ops.homepagePath);
         }
       }
@@ -75,7 +75,7 @@ export async function questionnaire(defaults: Config, io: PromptIO = terminalIO,
       config.workflow = await pick('Ordinary change workflow', ['validate', 'run-local'], config.workflow);
       config.apps = config.apps.map(a => ({ ...a, capabilities: a.capabilities.filter(c => config.capabilities.includes(c)) })).filter(a => a.capabilities.length);
       try { return validateConfig(config); }
-      catch (error) { stdout.write(`\n${(error as Error).message} Let's correct the answers.\n`); }
+      catch (error) { stdout.write(session.paint('warning', `\n${(error as Error).message} Let's correct the answers.\n`)); }
     }
   } finally { session.close(); }
 }

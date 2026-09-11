@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import { colorized } from './colorized.js';
+import { completionSummary } from './completion.js';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { GENRES, GENRE_PROFILES, recommendCapabilities, type Genre } from './genres.js';
@@ -96,7 +98,7 @@ export async function main(argv = process.argv.slice(2), dependencies: { runner?
   if (command === 'doctor') {
     const result = doctor(root);
     if (values.json) console.log(json(result));
-    else for (const finding of result.findings) console.log(`${finding.level.toUpperCase()} ${finding.code}: ${finding.message}`);
+    else for (const finding of result.findings) console.log(colorized(finding.level, `${finding.level.toUpperCase()} ${finding.code}: ${finding.message}`));
     if (!result.ok) process.exitCode = 1;
     return;
   }
@@ -205,8 +207,8 @@ export async function main(argv = process.argv.slice(2), dependencies: { runner?
       console.log(values.json ? json(preview) : JSON.stringify(preview, null, 2));
       return;
     }
-    if (!values.json) console.log('External generator (application files are not rolled back):\n' + JSON.stringify(invocation, null, 2));
-    if (!values.yes && !await confirm('Run this external generator?')) { console.log('Cancelled; no files written.'); return; }
+    if (!values.json) console.log(colorized('warning', 'External generator (application files are not rolled back):\n' + JSON.stringify(invocation, null, 2)));
+    if (!values.yes && !await confirm('Run this external generator?')) { console.log(colorized('warning', 'Cancelled; no files written.')); return; }
     detection = await scaffoldProject(invocation, dependencies.runner, !!values.json);
     scaffoldCompleted = true;
     candidate = configure({ ...detection.config, genre: candidate.genre, preferredAgent: candidate.preferredAgent, learningJournal: candidate.learningJournal });
@@ -224,33 +226,33 @@ export async function main(argv = process.argv.slice(2), dependencies: { runner?
   }
   const result = plan(root, config, command === 'update' ? 'update' : 'init');
   if (!values.json) {
-    console.log('Profile: ' + config.genre + '; agent: ' + config.preferredAgent + '; capabilities: ' + config.capabilities.join(', ') + '; package manager: ' + config.packageManager + '; database: ' + config.database + '; deployment: ' + config.deployment.kind + '; automatic live update: ' + getOperations(config).portainerStackUpdate);
-    console.log(`\n${values['dry-run'] ? 'Preview' : 'Plan'} for ${config.projectName}\nTarget: ${root}`);
+    console.log(colorized('info', 'Profile: ' + config.genre + '; agent: ' + config.preferredAgent + '; capabilities: ' + config.capabilities.join(', ') + '; package manager: ' + config.packageManager + '; database: ' + config.database + '; deployment: ' + config.deployment.kind + '; automatic live update: ' + getOperations(config).portainerStackUpdate));
+    console.log(colorized('heading', `\n${values['dry-run'] ? 'Preview' : 'Plan'} for ${config.projectName}\nTarget: ${root}`));
     for (const warning of detection.warnings) {
       if (warning.startsWith('Portainer file') && config.deployment.kind === 'portainer') continue;
       if (warning.startsWith('Application type') && (interactive || command === 'update' || values.config || values.capabilities || !values.yes && !values['dry-run'] && command === 'init')) continue;
-      console.log(`NOTE ${warning}`);
+      console.log(colorized('warning', `NOTE ${warning}`));
     }
     for (const change of result.changes) {
-      console.log(`${change.action.toUpperCase().padEnd(10)} ${change.path}${change.reason ? ': ' + change.reason : ''}`);
+      console.log(colorized(change.action, `${change.action.toUpperCase().padEnd(10)} ${change.path}${change.reason ? ': ' + change.reason : ''}`));
       if (values.diff && change.action !== 'unchanged') console.log(diff(change));
     }
   }
   if (result.conflicts.length) {
     if (values.json) console.log(json({ ...result, written: false }));
-    else console.log((scaffoldCompleted ? 'Application scaffold remains; no Agent Kit files written. ' : 'No files written. ') + 'Reconcile existing instructions manually, or generate into a separate directory with --config.');
+    else console.log(colorized('error', (scaffoldCompleted ? 'Application scaffold remains; no Agent Kit files written. ' : 'No files written. ') + 'Reconcile existing instructions manually, or generate into a separate directory with --config.'));
     process.exitCode = 2;
     return;
   }
   if (values['dry-run']) {
     if (values.json) console.log(json({ ...result, written: false }));
-    else console.log('Dry run complete; no files or directories written.');
+    else console.log(colorized('success', 'Dry run complete; no files or directories written.'));
     return;
   }
-  if (interactive && !await confirm()) { console.log(scaffoldCompleted ? 'Cancelled Agent Kit generation; application scaffold remains.' : 'Cancelled; no files written.'); return; }
+  if (interactive && !await confirm()) { console.log(colorized('warning', scaffoldCompleted ? 'Cancelled Agent Kit generation; application scaffold remains.' : 'Cancelled; no files written.')); return; }
   applyPlan(result);
   if (values.json) console.log(json({ ...result, written: true }));
-  else console.log('Done. Add custom guidance outside managed markers. Run config-agent-kit doctor to check the result.');
+  else console.log(completionSummary(result, scaffoldCompleted));
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) main().catch((error: unknown) => {
@@ -258,6 +260,6 @@ if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToP
   const cancelled = e.name === 'AbortError' || e.message.includes('readline was closed');
   const message = cancelled ? 'Cancelled; no Agent Kit files written.' : e.message;
   if (process.argv.includes('--json')) console.error(json({ error: message }));
-  else console.error(`Error: ${message}`);
+  else console.error(colorized(cancelled ? 'warning' : 'error', `Error: ${message}`, process.stderr));
   process.exitCode = error instanceof ScaffoldError ? error.exitCode : cancelled ? 130 : 1;
 });

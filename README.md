@@ -4,12 +4,34 @@
 
 Requires Node.js 22 or newer. Zero runtime dependencies. Upstream generators have their own requirements; current Vite starters require Node.js 22.12+ on the Node 22 line.
 
-## Roadmap:
+## Roadmap
 
-- ✅ Prompt Mode Selection (Vibing { few prompts }, I'm A Pro { full menu })
-- ✅ Genre Selection (Game, Data Science, Embedded, Mobile, Web, etc..)
-- ✅ Project Scaffolding Concatenation
-- ✅ Preferred Agent Selection (GPT, Claude, Gemini, OLLama)
+| Status | Feature | Description | Priority |
+| --- | --- | --- | --- |
+| ✅ | Prompt mode selection | Vibing for fewer questions or Pro for full configuration. | High |
+| ✅ | Genre selection | Tailor guidance for web, mobile, game, data science, embedded, and other projects. | High |
+| ✅ | Project scaffolding | Run a supported upstream generator, then configure agent guidance. | High |
+| ✅ | Preferred agent selection | Choose GPT, Claude, Gemini, Llama, or agent-agnostic guidance. | High |
+| ✅ | Terminal color and emphasis | Centralized palette for prompts and results, with plain JSON and configurable color support. | High |
+| ✅ | Completion summary | Show applied file counts, active guidance, and exact next commands after successful generation. | High |
+
+### Pending
+
+| Status | Feature | Description | Priority |
+| --- | --- | --- | --- |
+| ⏳ | Interactive change review | explain planned file changes with readable diffs before applying them. | High |
+| ⏳ | Guided conflict resolution | preserve custom instructions while updating generated templates. | High |
+| ⏳ | Project drift detection | propose updates when frameworks, services, scripts, or role assignments change. | High |
+| ⏳ | Explain mode | show why each role and skill was selected and the project evidence behind it. | High |
+| ⏳ | Instruction health report | extend doctor checks for broken references, missing commands, conflicting guidance, and outdated skills. | High |
+| ⏳ | Team presets | reuse preferred agents, operational policies, roles, and skills across projects. | Medium |
+| ⏳ | Custom role and skill templates | support user templates with metadata validation and previews. | Medium |
+| ⏳ | Update snapshots and undo | restore instruction files affected by a toolkit update. | Medium |
+| ⏳ | Monorepo instruction scoping | combine shared root rules with app- and package-specific guidance. | Medium |
+| ⏳ | CI health checks | fail checks for invalid metadata, broken references, and stale command mappings. | Medium |
+| ⏳ | Example gallery | demonstrate generated setups for web, API, Electron, Python, and monorepo projects. | Medium |
+| ⏳ | Template version reporting | show installed template versions and changes available in an update. | Medium |
+| ⏳ | Role and skill identity metadata | extend existing attribution with a distinct identity for each generated role and skill. | Medium |
 
 ## Run locally
 
@@ -38,6 +60,8 @@ node dist/cli.js update C:\repos\my-app --dry-run --diff
 ```
 
 Use the published version with `npx config-agent-kit@latest my-app`, or test this build with `npx <absolute-path-to-tgz> my-app`. The repository is MIT licensed. A locally built release is not published automatically.
+
+Terminal styling is centralized in `src/colorized.ts`. Colors are enabled for interactive terminals; redirected output stays plain unless `FORCE_COLOR=1` is set. Set `NO_COLOR=1`, `NODE_DISABLE_COLORS=1`, or `FORCE_COLOR=0` to disable styling. JSON output always stays plain.
 
 ## Generated layout
 

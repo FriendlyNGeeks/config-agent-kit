@@ -19,7 +19,7 @@ export async function setupQuestionnaire(defaults: Config, options: SetupOptions
         if (!/^(?:@[a-zA-Z0-9_.-]+\/)?[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(config.projectName)) throw new Error('Use a package-style project name.');
         break;
       }
-      catch (error) { io.output.write((error as Error).message + '\n'); }
+      catch (error) { io.output.write(session.paint('warning', (error as Error).message + '\n')); }
     }
     let selection = options.selection;
     const providers = SCAFFOLD_PROVIDERS.filter(p => p.genres.includes(config.genre));
@@ -30,7 +30,7 @@ export async function setupQuestionnaire(defaults: Config, options: SetupOptions
         const id = providers.length === 1 ? providers[0]!.id : await pick('Application generator', providers.map(p => p.id), providers[0]!.id);
         const provider = providers.find(p => p.id === id)!;
         const frameworks = Object.keys(provider.frameworks);
-        io.output.write('Generator: ' + provider.label + '\n');
+        io.output.write(session.paint('info', 'Generator: ' + provider.label + '\n'));
         const framework = frameworks.length === 1 ? frameworks[0]! : await pick('Framework (TypeScript starter)', frameworks, frameworks[0]!);
         selection = { provider: id, framework };
       }
