@@ -2,8 +2,8 @@ name: Publish to npm
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -15,12 +15,13 @@ concurrency:
 
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main'
     runs-on: self-hosted
     permissions:
       contents: read
       id-token: write
     steps:
-      - name: Check out release
+      - name: Check out commit
         uses: actions/checkout@v6
 
       - name: Set up Node.js
@@ -36,18 +37,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify release version
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-          RELEASE_REF_TYPE: ${{ github.ref_type }}
-        run: |
-          node --input-type=module -e 'import { readFileSync } from "node:fs"; const { version } = JSON.parse(readFileSync("package.json", "utf8")); if (process.env.RELEASE_REF_TYPE !== "tag") { throw new Error("Run this workflow on a version tag, not a branch."); } if (process.env.RELEASE_TAG !== version && process.env.RELEASE_TAG !== `v${version}`) { throw new Error(`Tag ${process.env.RELEASE_TAG} must match package version ${version}`); }'
-
       - name: Run tests and build
         run: npm test
 
+      - name: Check npm version
+        id: package
+        run: node .github/scripts/check-npm-version.mjs
+
       # Configure this repository and publish.yml as a trusted publisher on npm.
       - name: Publish package
+        if: steps.package.outputs.publish == 'true'
         env:
-          NPM_DIST_TAG: ${{ contains(github.ref_name, '-') && 'next' || 'latest' }}
-        run: npm publish --access public --tag "$NPM_DIST_TAG"
+          NPM_DIST_TAG: ${{ steps.package.outputs.tag }}
+        run: node .github/scripts/publish-npm.mjs
