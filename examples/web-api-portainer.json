@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "projectName": "my-service",
   "capabilities": [
     "web",
@@ -31,7 +31,9 @@
     "homepagePath": "/config/APP/Portainer/services.yml"
   },
   "publishing": {
-    "dockerHubUsername": "MrRobot",
+    "dockerHubUsername": "mrrobot",
     "architecture": "arm64"
-  }
+  },
+  "genre": "web",
+  "preferredAgent": "agnostic"
 }

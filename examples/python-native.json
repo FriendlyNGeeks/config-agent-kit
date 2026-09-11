@@ -1,11 +1,20 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "projectName": "native-worker",
-  "capabilities": ["python", "native"],
+  "capabilities": [
+    "python",
+    "native"
+  ],
   "packageManager": "none",
   "database": "none",
   "apps": [],
-  "commands": { "verify": [] },
-  "deployment": { "kind": "none" },
-  "workflow": "validate"
+  "commands": {
+    "verify": []
+  },
+  "deployment": {
+    "kind": "none"
+  },
+  "workflow": "validate",
+  "genre": "general",
+  "preferredAgent": "agnostic"
 }

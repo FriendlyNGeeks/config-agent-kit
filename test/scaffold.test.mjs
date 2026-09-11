@@ -6,7 +6,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { detect } from '../dist/detect.js';
-import { validateConfig, CONFIG_PATH, STATE_PATH } from '../dist/config.js';
+import { validateConfig, VERSION, CONFIG_PATH, STATE_PATH } from '../dist/config.js';
 import { render } from '../dist/render.js';
 import { applyPlan, plan } from '../dist/generate.js';
 import { doctor } from '../dist/doctor.js';
@@ -118,7 +118,7 @@ test('init and repeated update are idempotent and retain template version', () =
   assert.ok(update.changes.every(c => c.action === 'unchanged'));
   applyPlan(update);
   assert.equal(get(root, 'AGENTS.md'), before);
-  assert.equal(JSON.parse(get(root, STATE_PATH)).templateVersion, '0.3.1');
+  assert.equal(JSON.parse(get(root, STATE_PATH)).templateVersion, VERSION);
 });
 
 test('safe update preserves custom text and CRLF outside managed blocks', () => {

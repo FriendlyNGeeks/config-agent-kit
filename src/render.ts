@@ -1,3 +1,4 @@
+import { agentAdapter, ADAPTER_FILES } from './agents.js';
 import { reusableSkills, SKILL_NAMES } from './skills.js';
 import { operationalRoles } from './roles.js';
 import { VERSION, COMMAND_KEYS, getOperations, type Config } from './config.js';
@@ -6,7 +7,7 @@ export const BEGIN = '<!-- agent-scaffold:begin -->';
 export const END = '<!-- agent-scaffold:end -->';
 export const ROLE_NAMES = ['architect', 'middleware', 'qa', 'security', 'devops', 'frontend', 'backend', 'desktop', 'python', 'native', 'database'];
 export const ROLE_MIGRATIONS = Object.fromEntries(ROLE_NAMES.map(name => ['.agents/' + name + '.md', '.agents/roles/' + name + '.md']));
-export const MANAGED_FILES = ['AGENTS.md', '.agents/project.md', '.agents/roles/frontend.md', '.agents/roles/backend.md', '.agents/roles/desktop.md', '.agents/roles/python.md', '.agents/roles/native.md', '.agents/roles/database.md', '.agents/deploy.md', '.agents/roles/architect.md', '.agents/roles/middleware.md', '.agents/roles/qa.md', '.agents/roles/security.md', '.agents/roles/devops.md', ...Object.keys(ROLE_MIGRATIONS), ...SKILL_NAMES.map(name => '.agents/skills/' + name + '/SKILL.md')];
+export const MANAGED_FILES = [...ADAPTER_FILES, 'AGENTS.md', '.agents/project.md', '.agents/roles/frontend.md', '.agents/roles/backend.md', '.agents/roles/desktop.md', '.agents/roles/python.md', '.agents/roles/native.md', '.agents/roles/database.md', '.agents/deploy.md', '.agents/roles/architect.md', '.agents/roles/middleware.md', '.agents/roles/qa.md', '.agents/roles/security.md', '.agents/roles/devops.md', ...Object.keys(ROLE_MIGRATIONS), ...SKILL_NAMES.map(name => '.agents/skills/' + name + '/SKILL.md')];
 const block = (body: string) => `${BEGIN}\n${body.trim()}\n${END}\n`;
 export const packageCommand = (manager: Config['packageManager'], script: string) => `${manager} run ${script}`;
 
@@ -53,6 +54,7 @@ ${config.database !== 'none' ? '- Read `.agents/roles/database.md` for persisten
 - Keep generated binaries and vendored dependencies out of routine source searches.
 - Do not introduce Node, Electron, Docker, or another runtime unless the task requires it.`);
   if (config.database !== 'none') add('.agents/roles/database.md', `# Database\n
+Own schema, validation and migration choices using the existing tooling. Ask about missing product behavior, not routine database rules.
 - Database choice: ${config.database}. Inspect existing schema, migration tooling, and deployment configuration before changes.
 - Use reviewed, versioned migrations where the database/tooling supports them; preserve required data backfills and custom constraints.
 - For Prisma with a relational database, schema synchronization is not a replacement for migration history. Establish a baseline before switching an existing database to migrations.
@@ -86,18 +88,17 @@ portainerStackUpdate: ${ops.portainerStackUpdate}
 
 QA owns rebuild/changelog behavior; DevOps owns deployment sequencing. Explicit user scope restrictions take precedence.
 
-- Prefer the smallest complete change and existing conventions. Preserve unrelated worktree changes.
-- Keep entry points focused on composition and modules focused on one owned responsibility. Reuse suitable utilities; add abstractions only when they solve a concrete need.
-- Inspect nearby code and affected tests. Search narrowly, excluding dependencies, virtual environments, generated output, and vendored code by default.
-- Collect affected validation commands, remove overlapping work, and execute each necessary check once. Add meaningful regression coverage when changed behavior warrants it; reuse existing test files where suitable.
-- Follow .agents/roles/qa.md for runtime rebuilds and validation; other local execution uses the ${config.workflow} workflow.
-- Follow the selected operational policies within the user's scope. An enabled automatic Portainer policy is a standing workflow preference; do not repeatedly reconfirm authorized work.
-- Keep real credentials out of source, logs, generated instructions, and image layers. Document only required configuration with harmless examples.
-- Follow .agents/roles/qa.md for changelog triggers and preservation rules.
-- Finish with the result, relevant checks, and material limitations. Do not claim unrun checks passed.`);
+- Turn the user's plain-language feature request into working code. Own routine technical choices, security defaults and database rules; ask only for missing product decisions or consequential actions outside the requested scope.
+- Follow existing conventions, make the smallest complete change, and preserve unrelated work. Keep modules focused; avoid speculative abstractions.
+- Read only affected roles and skills. Search narrowly and run each relevant check once. QA owns rebuilds and changelog; other local execution uses the ${config.workflow} workflow.
+- Keep secrets out of source and logs, validate untrusted input, and preserve existing data. Handle these as implementation responsibilities rather than a setup questionnaire.
+- An enabled Portainer policy is a standing workflow preference within user scope. Do not repeatedly reconfirm already authorized work.
+- Finish with what works, what was checked, and any unresolved limitation. Never claim unrun checks passed.`);
   const appLines = config.apps.length ? config.apps.map(a => `- \`${a.path}\`: ${a.capabilities.join(', ')}.`).join('\n') : '- No application paths are recorded yet. Inspect the repository before selecting paths; this toolkit generates instructions, not application source.';
   const commandLines = [...config.commands.verify.map(s => `- verify: \`${packageCommand(config.packageManager, s)}\`.`), ...COMMAND_KEYS.flatMap(k => config.commands[k] ? [`- ${k}: \`${packageCommand(config.packageManager, config.commands[k]!)}\`.`] : []), ...Object.entries(config.commands.publishServices ?? {}).map(([service, script]) => `- publishServices.${service}: \`${packageCommand(config.packageManager, script)}\`.`)].join('\n') || '- No package scripts are recorded. Inspect or implement required scripts before running commands; report missing mappings.';
   add('.agents/project.md', `# ${config.projectName}\n
+- Genre: ${config.genre ?? 'general'}.
+- Preferred agent: ${config.preferredAgent ?? 'agnostic'}.
 - Capabilities: ${config.capabilities.join(', ')}.
 - Package manager: ${config.packageManager}.
 - Database: ${config.database}.
@@ -112,5 +113,7 @@ ${appLines}
 ${commandLines}
 
 These are references to root package scripts, not a mandatory checklist. Confirm definitions in package.json before running them and select affected workspace checks where appropriate. Re-run \`config-agent-kit doctor\` after scripts or paths change. Add custom guidance outside managed markers so updates preserve it.`);
+  const adapter = agentAdapter(config.preferredAgent ?? 'agnostic');
+  if (adapter) add(adapter.file, adapter.body);
   return Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b)));
 }

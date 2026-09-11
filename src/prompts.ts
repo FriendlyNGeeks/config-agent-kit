@@ -1,36 +1,31 @@
-import readline from 'node:readline/promises';
-import { stdin, stdout } from 'node:process';
+import { promptSession, terminalIO, type PromptIO } from './prompt-io.js';
+import { clarifySurface, type PromptMode } from './setup-prompts.js';
+import { PREFERRED_AGENTS, AGENT_PROFILES } from './agents.js';
 import { ARCHITECTURES, getPublishing, CAPABILITIES, DATABASES, DOCKER_WORKFLOWS, MANAGERS, getOperations, validateConfig, type Config } from './config.js';
 
 export const COMPOSE_HELP = 'Compose file path, relative to the project directory you selected (the folder containing AGENTS.md). Examples: docker-compose.yml means a file at the project root; docker/docker-compose.yml means a file in its docker subfolder. For Portainer, use the tracked deployment file, often portainer.yml. This is not a remote server path, Portainer URL, or data-volume location. The CLI records the path but does not create the Compose file. Leave blank if unknown; resolve it before running/deploying. Enter keeps a detected value; type - to clear it.';
 
-export async function questionnaire(defaults: Config, io = { input: stdin as NodeJS.ReadableStream, output: stdout as NodeJS.WritableStream }): Promise<Config> {
-  const { input, output: stdout } = io;
-  const rl = readline.createInterface({ input, output: stdout });
-  const controller = new AbortController();
-  const interrupt = () => controller.abort();
-  process.once('SIGINT', interrupt);
-  const ask = async (label: string, fallback = '') => (await rl.question(`${label}${fallback ? ` [${fallback}]` : ''}: `, { signal: controller.signal })).trim() || fallback;
-  const pick = async <T extends string>(label: string, values: readonly T[], fallback: T): Promise<T> => {
-    while (true) {
-      stdout.write(`\n${label}\n${values.map((v, i) => `  ${i + 1}. ${v}`).join('\n')}\n`);
-      const answer = await ask('Choose number or name', fallback);
-      const selected = values[Number(answer) - 1] ?? (values.includes(answer as T) ? answer as T : undefined);
-      if (selected) return selected;
-      stdout.write('Choose one of the listed values.\n');
-    }
-  };
-  const yesNo = async (label: string, fallback: boolean) => await pick(label, ['yes', 'no'], fallback ? 'yes' : 'no') === 'yes';
+export interface QuestionnaireOptions { mode?: PromptMode; skipIdentity?: boolean; askAgent?: boolean; capabilitiesKnown?: boolean }
+export async function questionnaire(defaults: Config, io: PromptIO = terminalIO, options: QuestionnaireOptions = {}): Promise<Config> {
+  const session = promptSession(io);
+  const { ask, pick, yesNo } = session;
+  const stdout = io.output;
   const composePath = async (label: string, fallback?: string) => {
     stdout.write(`\n${COMPOSE_HELP}\n`);
     const value = await ask(label, fallback ?? '');
     return value === '-' || !value ? undefined : value;
   };
   try {
-    stdout.write('\nAgent Kit — project configuration\nCreates AGENTS.md and selected .agents references; does not scaffold application code.\n');
+    stdout.write('\nAgent Kit — project configuration\nConfigures AGENTS.md and selected roles and skills.\n');
     let config = structuredClone(defaults);
+    if (options.askAgent) config.preferredAgent = await pick('Preferred coding agent', PREFERRED_AGENTS, config.preferredAgent, Object.fromEntries(PREFERRED_AGENTS.map(a => [a, AGENT_PROFILES[a].label])));
+    if (options.mode === 'vibe') {
+      if (!options.capabilitiesKnown) await clarifySurface(config, session);
+      stdout.write('\nDescribe features in your own words. Your agent handles routine validation, secrets and data protection. You can revisit settings with update --interactive --prompt-mode pro.\n');
+      return validateConfig(config);
+    }
     while (true) {
-      config.projectName = await ask('Project name', config.projectName);
+      if (!options.skipIdentity) config.projectName = await ask('Project name', config.projectName);
       stdout.write(`\nCapabilities: ${CAPABILITIES.map((c, i) => `${i + 1}=${c}`).join(', ')}\n`);
       const answer = await ask('Select names or numbers separated by commas', config.capabilities.join(','));
       config.capabilities = answer.split(',').map(s => s.trim()).map(s => CAPABILITIES[Number(s) - 1] ?? s) as Config['capabilities'];
@@ -82,11 +77,11 @@ export async function questionnaire(defaults: Config, io = { input: stdin as Nod
       try { return validateConfig(config); }
       catch (error) { stdout.write(`\n${(error as Error).message} Let's correct the answers.\n`); }
     }
-  } finally { process.removeListener('SIGINT', interrupt); rl.close(); }
+  } finally { session.close(); }
 }
 
-export async function confirm(): Promise<boolean> {
-  const rl = readline.createInterface({ input: stdin, output: stdout });
-  try { return /^(y|yes)$/i.test((await rl.question('Write these files? [y/N]: ')).trim()); }
-  finally { rl.close(); }
+export async function confirm(label = 'Write these files?'): Promise<boolean> {
+  const session = promptSession();
+  try { return /^(y|yes)$/i.test(await session.ask(label + ' [y/N]')); }
+  finally { session.close(); }
 }

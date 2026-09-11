@@ -1,15 +1,15 @@
 # Agent Kit
 
-`config-agent-kit` configures project instructions, role guidance, and reusable skills. It does not generate application source, execute application commands, or deploy services.
+`config-agent-kit` configures project instructions, role guidance, and reusable skills. It can optionally run a registered upstream application generator, then re-detect the project and configure its agents. It never deploys services.
 
-Requires Node.js 22 or newer. Zero runtime dependencies.
+Requires Node.js 22 or newer. Zero runtime dependencies. Upstream generators have their own requirements; current Vite starters require Node.js 22.12+ on the Node 22 line.
 
 ## Roadmap:
 
-- [ ] Prompt Mode Selection (Vibing { few prompts }, I'm A Pro { full menu })
-- [ ] Genre Selection (Game, Data Science, Embedded, Mobile, Web, etc..)
-- [ ] Project Scaffolding Concatenation
-- [ ] Preferred Agent Selection (GPT, Claude, Gemini, LLama)
+- [x] Prompt Mode Selection (Vibing { few prompts }, I'm A Pro { full menu })
+- [x] Genre Selection (Game, Data Science, Embedded, Mobile, Web, etc..)
+- [x] Project Scaffolding Concatenation
+- [x] Preferred Agent Selection (GPT, Claude, Gemini, OLLama)
 
 ## Run locally
 
@@ -37,7 +37,7 @@ For an existing installation, preview the migration:
 node dist/cli.js update C:\repos\my-app --dry-run --diff
 ```
 
-The package has been renamed locally but has not been published or reserved on npm. After public publication, users can run `npx config-agent-kit@latest my-app`. Until then, use the local CLI or the packaged archive with `npx <absolute-path-to-tgz> my-app`. The package remains marked private and UNLICENSED pending a publication/license decision.
+Use the published version with `npx config-agent-kit@latest my-app`, or test this build with `npx <absolute-path-to-tgz> my-app`. The repository is MIT licensed. A locally built release is not published automatically.
 
 ## Generated layout
 
@@ -81,6 +81,8 @@ The CLI generates the skill only. It never creates placeholder learning entries 
 
 ## Conditional questions
 
+These detailed questions appear in Pro mode. Vibing uses detected or conservative defaults and shows a short summary before writing.
+
 - Project name, capabilities, package manager, and database establish the project profile.
 - Electron enables the Electron rebuild follow-up.
 - Docker yes/no gates local Docker workflow, publication settings, and Portainer questions.
@@ -119,11 +121,63 @@ Portainer deployment retains verification, task-only Git commit/push, changed-im
 
 The toolkit writes these instructions; running the toolkit itself never pushes Git, publishes images, or changes a live stack.
 
+## Prompt modes and genres
+
+Start with a plain-language goal. Vibing asks for a name, genre, optional starter, preferred agent, and at most one runtime clarification when detection is ambiguous. It skips database, security, Docker, Electron rebuild, and credential questionnaires. The generated instructions put routine security, validation and data preservation responsibilities on the coding agent. Existing explicit operational settings remain intact. Fresh projects do not enable automatic live deployment.
+
+Pro exposes the full existing menu. Both modes produce the same validated configuration and use the same concise canonical rules. Specialized deployment and rebuild procedures remain in conditional skills. Revisit settings at any time:
+
+~~~powershell
+npx config-agent-kit my-app --prompt-mode vibe
+npx config-agent-kit update my-app --interactive --prompt-mode pro
+~~~
+
+Genres are web, mobile, game, data-science, embedded, service, desktop, library, and general (not sure yet). They recommend technical capabilities without replacing detected or explicitly selected ones. Empty folders have an explicit empty state; a fallback web capability is not treated as proof of a web project.
+
+## Native project scaffolding
+
+~~~powershell
+npx config-agent-kit scaffold my-app
+npx config-agent-kit scaffold my-app --genre web --scaffolder vite --framework react --preferred-agent gpt --yes
+npx config-agent-kit scaffold phone-app --genre mobile --scaffolder expo --yes
+npx config-agent-kit scaffold desktop-app --genre desktop --scaffolder electron-forge --yes
+npx config-agent-kit scaffold my-app --genre web --dry-run --json
+~~~
+
+Guided init offers a starter only for a new or empty directory. The explicit scaffold command or --scaffolder opts into execution; --yes accepts that explicitly selected handoff without prompts. Ordinary --yes initialization never launches an upstream generator.
+
+| Provider | Genre | Framework choices | Target strategy |
+|---|---|---|---|
+| Vite | web, browser game | react, vue, svelte, vanilla, preact, solid (TypeScript templates) | Run in the chosen root with dot |
+| Expo | mobile | react-native (blank TypeScript) | Run from parent with target basename |
+| Electron Forge | desktop | electron (Vite TypeScript) | Run from parent with target basename |
+
+Game engines, embedded toolchains, data-science starters, services and libraries can all receive Agent Kit configuration. Automatic scaffolding is deliberately unavailable where no trusted provider is registered. A Vite game selection means a browser starter, not a game-engine generator.
+
+The CLI prints the executable, arguments and working directory before confirmation. It invokes npm's JavaScript entry through Node with shell:false, including on Windows. IDs and templates are allowlisted; no raw shell command from configuration is executed. Generator downloads require network access. Expo skips dependency installation and upstream agent files; Electron Forge may install dependencies. The selected package manager is re-detected from actual generated files, rather than assumed from the launcher.
+
+Scaffolding requires an empty/new directory with a lowercase package-style basename. Parent directories may contain spaces. Traversal and symlink/junction targets are rejected. A nonempty unrecognized folder can receive instructions via init but cannot be overwritten by a scaffolder.
+
+Dry-run never creates a target or starts a process. A scaffold preview is marked provisional: it shows the exact invocation, because the final instruction diff requires real application files. After success, detection runs again; then Agent Kit previews and applies only its managed files. A failed or cancelled generator leaves its output intact and generates no Agent Kit files. A later instruction conflict also leaves the application scaffold intact. Upstream output is not part of Agent Kit rollback. With --json, upstream logs go to stderr and the final structured result goes to stdout. External failure exit codes are propagated; cancellation uses 130.
+
+Provider references: [Vite](https://vite.dev/guide/), [Expo](https://docs.expo.dev/more/create-expo/), [Electron Forge](https://www.electronforge.io/templates/vite-%2B-typescript). Upstream latest releases can change; inspect the preview before execution.
+
+## Preferred agents
+
+Choose agnostic, gpt, claude, gemini, or llama with the questionnaire or --preferred-agent. AGENTS.md and .agents remain canonical for every choice. Claude gets a small CLAUDE.md that imports AGENTS.md; Gemini gets the same import in GEMINI.md. GPT/Codex and agnostic add no redundant adapter. Llama/local records the preference without assuming a particular runtime or instruction filename. No agent is launched, and no model version or security policy is selected by this setting.
+
+Adapters follow documented [Claude imports](https://code.claude.com/docs/en/memory) and [Gemini imports](https://geminicli.com/docs/cli/gemini-md/). They share the existing conflict, custom-text and safe-update rules. These are instruction adapters, not model integrations. Tools without native skill discovery should read the routed SKILL.md on demand; the CLI does not duplicate a skill tree for each agent.
+
 ## Configuration and CLI
 
 Use `node dist/cli.js --help` for all switches. Key options:
 
 ```text
+--prompt-mode <mode>            vibe,pro (session only)
+--genre <genre>                 Project taxonomy; general when unknown
+--preferred-agent <agent>       agnostic,gpt,claude,gemini,llama
+--scaffolder <provider>          vite,expo,electron-forge (opt-in)
+--framework <framework>          Provider-specific template choice
 --config <file>                 Validated JSON answers
 --name <name>                   Project name
 --capabilities <list>           web,api,desktop,python,native
@@ -156,7 +210,7 @@ Use `node dist/cli.js --help` for all switches. Key options:
 
 Booleans use `true` or `false`. `--interactive` cannot combine with `--yes` or `--json`. Machine-readable init/update requires `--yes` or `--dry-run`.
 
-Config schema remains version 1. Existing configs default `learningJournal` to false. `commands.verify` and named build/rebuild/publication mappings contain package script names, never executable configuration code. `sharedPackages` stores project-relative ownership paths such as packages/config and packages/types. See examples/ for starting profiles.
+Config schema is now version 2, with validated genre and preferredAgent fields. Version 1 configs migrate on update; ambiguous genres become general and the preferred agent defaults to agnostic. Prompt mode is session-only and is never saved. Existing configs default `learningJournal` to false. `commands.verify` and named build/rebuild/publication mappings contain package script names, never executable configuration code. `sharedPackages` stores project-relative ownership paths such as packages/config and packages/types. See examples/ for starting profiles.
 
 ## Safe updates and migration
 
@@ -179,4 +233,4 @@ npm test
 npm pack --pack-destination ..
 ```
 
-The prepack build includes compiled dist files. Test coverage exercises conditional prompts, role migrations, protected skill metadata, journal preservation, stale plans, conflicts, rollback, platform selection, and CLI behavior. Public publication is a separate action requiring an npm account, a chosen license, removal of the private flag, and a fresh name-availability check.
+The prepack build includes compiled dist files. Test coverage exercises conditional prompts, role migrations, protected skill metadata, journal preservation, stale plans, conflicts, rollback, platform selection, and CLI behavior. Public publication is a separate action requiring npm publishing access. Package and CLI versions are read from the same package metadata.

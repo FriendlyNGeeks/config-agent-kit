@@ -14,8 +14,10 @@ export function operationalRoles(c: Config): Record<string, string> {
 - Account for per-app builds, local image builds, Compose startup, per-service/platform publication, and all-image publication in root scripts. Use the command mappings in .agents/project.md; report missing tooling instead of inventing a successful command.
 - Derive package, image, and installer names/versions from owning package metadata. Preserve existing deployed stack names and volume identities; use the root package name for a new local Compose project.
 ${dockerEnabled(c) ? "- Use .agents/skills/docker-publish/SKILL.md for image naming, platform compatibility and publication." : "- Docker publication is not enabled."}
-- For shared boundaries read .agents/roles/middleware.md when present; use .agents/roles/qa.md for structural validation. This CLI generates guidance; application sources, scripts, Compose files, and ignore files still need implementation when scaffolding an application.`,
+- For shared boundaries read .agents/roles/middleware.md when present; use .agents/roles/qa.md for structural validation. Agent Kit owns instructions; opted-in native generators own starter code. Implement missing application scripts, Compose and ignore files when the requested work needs them.`,
     '.agents/roles/security.md': `# Security, environments and ignore files
+
+Apply these protections while implementing the requested behavior. Choose appropriate existing defaults; do not make the user select security settings for routine feature work.
 
 - Keep each application's real runtime settings in its own untracked .env or injected runtime environment. Do not rely on a single root runtime .env for every app.
 - Track per-app .env.example files containing only required names and harmless placeholders. Account for PORT, BASE_URL, BACKEND_URL, FRONTEND_URL and the chosen database's required settings; include MONGO_ROOT_USERNAME and MONGO_ROOT_PASSWORD for MongoDB, and MYSQL_ROOT_USERNAME and MYSQL_ROOT_PASSWORD for MySQL only when needed. Map these application-facing names to the database image's supported variables; do not assume every image accepts these names. Browser settings remain public.

@@ -1,9 +1,9 @@
 {
   "name": "config-agent-kit",
-  "version": "0.3.2",
+  "version": "1.4.0",
   "author": "FriendlyNGeeks",
   "license": "MIT",
-  "description": "Interactive, project-aware AGENTS.md scaffolding with safe updates and diagnostics",
+  "description": "Configure coding-agent instructions and skills, with guided native project scaffolding",
   "type": "module",
   "bin": {
     "config-agent-kit": "dist/cli.js"
@@ -11,7 +11,8 @@
   "files": [
     "dist",
     "examples",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=22"
@@ -25,5 +26,16 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.9.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FriendlyNGeeks/config-agent-kit.git"
+  },
+  "keywords": [
+    "config",
+    "agent",
+    "scaffolding",
+    "diagnostics",
+    "interactive"
+  ]
 }

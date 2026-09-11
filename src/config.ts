@@ -1,6 +1,9 @@
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
+import { GENRES, inferGenre, type Genre } from './genres.js';
+import { PREFERRED_AGENTS, type PreferredAgent } from './agents.js';
 
-export const VERSION = '0.3.1';
+export const VERSION: string = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 export const ARCHITECTURES = ['arm64', 'x64', 'x86'] as const;
 export const PLATFORMS = { arm64: 'linux/arm64', x64: 'linux/amd64', x86: 'linux/386' } as const;
 export interface Publishing { dockerHubUsername: string; architecture: typeof ARCHITECTURES[number] }
@@ -22,7 +25,9 @@ export const DATABASES = ['none', 'postgres', 'sqlite', 'mysql', 'mongodb', 'exi
 export const DEPLOYMENTS = ['none', 'docker', 'portainer'] as const;
 export type Capability = typeof CAPABILITIES[number];
 export interface Config {
-  schemaVersion: 1;
+  schemaVersion: 2;
+  genre: Genre;
+  preferredAgent: PreferredAgent;
   projectName: string;
   capabilities: Capability[];
   packageManager: typeof MANAGERS[number];
@@ -74,10 +79,18 @@ function capabilityList(value: unknown): Capability[] {
 }
 const scriptName = (value: unknown) => text(value, 'package script name', /^[a-zA-Z0-9][a-zA-Z0-9:_.-]*$/);
 
-export function validateConfig(input: unknown): Config {
+export function migrateConfig(input: unknown): Record<string, unknown> {
   const c = object(input, 'configuration');
-  keys(c, ['schemaVersion', 'projectName', 'capabilities', 'packageManager', 'database', 'apps', 'commands', 'deployment', 'workflow', 'operations', 'sharedPackages', 'publishing', 'learningJournal'], 'configuration');
-  if (c.schemaVersion !== 1) throw new Error('Unsupported configuration schemaVersion; expected 1.');
+  if (c.schemaVersion !== 1) return { ...c };
+  if ('genre' in c || 'preferredAgent' in c) throw new Error('genre and preferredAgent require configuration schemaVersion 2.');
+  const capabilities = capabilityList(c.capabilities);
+  return { ...c, schemaVersion: 2, genre: inferGenre(capabilities), preferredAgent: 'agnostic' };
+}
+
+export function validateConfig(input: unknown): Config {
+  const c = migrateConfig(input);
+  keys(c, ['schemaVersion', 'projectName', 'capabilities', 'packageManager', 'database', 'apps', 'commands', 'deployment', 'workflow', 'operations', 'sharedPackages', 'publishing', 'learningJournal', 'genre', 'preferredAgent'], 'configuration');
+  if (c.schemaVersion !== 2) throw new Error('Unsupported configuration schemaVersion; expected 1 or 2.');
   if (c.learningJournal !== undefined && typeof c.learningJournal !== 'boolean') throw new Error('learningJournal must be a boolean.');
   const capabilities = capabilityList(c.capabilities);
   const commands = object(c.commands, 'commands');
@@ -99,7 +112,7 @@ export function validateConfig(input: unknown): Config {
   });
   if (new Set(apps.map(a => a.path.toLowerCase())).size !== apps.length) throw new Error('Duplicate app paths.');
   const result: Config = {
-    schemaVersion: 1, learningJournal: c.learningJournal === true,
+    schemaVersion: 2, genre: choice(c.genre, GENRES, 'genre'), preferredAgent: choice(c.preferredAgent, PREFERRED_AGENTS, 'preferredAgent'), learningJournal: c.learningJournal === true,
     projectName: text(c.projectName, 'project name (use letters, digits, dashes, underscores, dots or an npm scope)', /^(?:@[a-zA-Z0-9_.-]+\/)?[a-zA-Z0-9][a-zA-Z0-9_.-]*$/),
     capabilities, packageManager: choice(c.packageManager, MANAGERS, 'packageManager'),
     database: choice(c.database, DATABASES, 'database'), apps,
@@ -117,6 +130,7 @@ export function validateConfig(input: unknown): Config {
   for (const key of ['changelogUpdate', 'dockerRebuild', 'electron', 'electronRebuild', 'portainerStackUpdate'] as const) if (typeof merged[key] !== 'boolean') throw new Error(`operations.${key} must be a boolean.`);
   merged.dockerWorkflow = choice(merged.dockerWorkflow, DOCKER_WORKFLOWS, 'dockerWorkflow');
   if (merged.dockerComposeFile !== undefined) merged.dockerComposeFile = relativePath(merged.dockerComposeFile, 'local Compose file');
+  else delete merged.dockerComposeFile;
   merged.portainerCredentialSource = choice(merged.portainerCredentialSource, ['homepage', 'external'], 'Portainer credential source');
   merged.homepageHost = text(merged.homepageHost, 'Homepage SSH alias', /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/);
   if (merged.homepagePath !== '') merged.homepagePath = text(merged.homepagePath, 'Homepage absolute file path', /^\/[a-zA-Z0-9_./ -]+$/, 240);
