@@ -1,6 +1,7 @@
 import { agentAdapter, ADAPTER_FILES } from './agents.js';
 import { reusableSkills, SKILL_NAMES } from './skills.js';
 import { operationalRoles } from './roles.js';
+import { MARKDOWN_METADATA } from './metadata.js';
 import { VERSION, COMMAND_KEYS, getOperations, type Config } from './config.js';
 
 export const BEGIN = '<!-- agent-scaffold:begin -->';
@@ -13,7 +14,9 @@ export const packageCommand = (manager: Config['packageManager'], script: string
 
 export function render(config: Config): Record<string, string> {
   const files: Record<string, string> = {};
-  const add = (file: string, body: string) => { files[file] = block(body); };
+  const add = (file: string, body: string) => {
+    files[file] = (file.startsWith('.agents/roles/') ? `---\n${MARKDOWN_METADATA}\n---\n\n` : '') + block(body);
+  };
   const selected = (cap: Config['capabilities'][number]) => config.capabilities.includes(cap);
   if (selected('web')) add('.agents/roles/frontend.md', `# Frontend\n
 - Follow the framework and styling conventions in the owning application; inspect its manifest first.

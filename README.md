@@ -6,10 +6,10 @@ Requires Node.js 22 or newer. Zero runtime dependencies. Upstream generators hav
 
 ## Roadmap:
 
-- [x] Prompt Mode Selection (Vibing { few prompts }, I'm A Pro { full menu })
-- [x] Genre Selection (Game, Data Science, Embedded, Mobile, Web, etc..)
-- [x] Project Scaffolding Concatenation
-- [x] Preferred Agent Selection (GPT, Claude, Gemini, OLLama)
+- ✅ Prompt Mode Selection (Vibing { few prompts }, I'm A Pro { full menu })
+- ✅ Genre Selection (Game, Data Science, Embedded, Mobile, Web, etc..)
+- ✅ Project Scaffolding Concatenation
+- ✅ Preferred Agent Selection (GPT, Claude, Gemini, OLLama)
 
 ## Run locally
 

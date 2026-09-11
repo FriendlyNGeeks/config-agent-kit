@@ -454,6 +454,23 @@ test('unmanaged destination blocks migration and legacy edited roles remain prot
   assert.ok(plan(root, validateConfig(base()), 'update').conflicts.includes('.agents/qa.md'));
 });
 
+test('generated roles and skills include attribution and retain it across updates', () => {
+  const root = fixture();
+  const c = validateConfig({ ...base(), capabilities: ['web', 'api', 'desktop', 'python', 'native'], database: 'postgres', deployment: { kind: 'portainer', host: 'lab', stackName: 'sample' }, learningJournal: true });
+  applyPlan(plan(root, c, 'init'));
+  const files = Object.keys(render(c)).filter(p => p.startsWith('.agents/roles/') || p.endsWith('/SKILL.md'));
+  for (const file of files) {
+    const content = get(root, file);
+    assert.ok(content.startsWith('---\n'), file);
+    const header = content.split('\n---\n')[0];
+    for (const field of ['title: "config-agent-kit"', 'author: "FriendlyNGeeks"', 'site: "https://friendlyneighborhoodgeeks.com"', 'date: 2026-09-11', 'tags: [config, agent, scaffolding, diagnostics, interactive]']) assert.ok(header.includes(field), file + ': ' + field);
+  }
+  assert.ok(plan(root, c, 'update').changes.every(change => change.action === 'unchanged'));
+  const role = '.agents/roles/architect.md';
+  put(root, role, get(root, role).replace('author: "FriendlyNGeeks"', 'author: "Edited"'));
+  assert.ok(plan(root, c, 'update').conflicts.includes(role));
+});
+
 test('all generated skills have discoverable metadata and existing skill references', () => {
   const files = render(validateConfig({ ...base(), capabilities: ['web', 'api', 'desktop'], deployment: { kind: 'portainer', host: 'lab', stackName: 'sample' }, learningJournal: true }));
   const skills = Object.entries(files).filter(([p]) => p.endsWith('/SKILL.md'));

@@ -1,4 +1,5 @@
 import { getOperations, getPublishing, PLATFORMS, dockerEnabled, type Config } from './config.js';
+import { MARKDOWN_METADATA } from './metadata.js';
 
 export const SKILL_NAMES = ['changelog-update', 'docker-publish', 'portainer-deploy', 'electron-rebuild', 'learning-journal'] as const;
 export function reusableSkills(c: Config): Record<string, string> {
@@ -6,7 +7,7 @@ export function reusableSkills(c: Config): Record<string, string> {
   const publishing = getPublishing(c);
   const files: Record<string, string> = {};
   const add = (name: string, description: string, body: string) => {
-    files['.agents/skills/' + name + '/SKILL.md'] = '---\nname: ' + name + '\ndescription: ' + description + '\n---\n\n' + body.trim();
+    files['.agents/skills/' + name + '/SKILL.md'] = '---\nname: ' + name + '\ndescription: ' + description + '\n' + MARKDOWN_METADATA + '\n---\n\n' + body.trim();
   };
   add('changelog-update', 'Update CHANGELOG.md for implemented product changes or release versions when requested or enabled by project policy.', `# Update the changelog
 
