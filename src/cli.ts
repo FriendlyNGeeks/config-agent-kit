@@ -2,6 +2,8 @@
 import path from 'node:path';
 import { colorized } from './colorized.js';
 import { completionSummary } from './completion.js';
+import { promptDefaults } from './prompt-defaults.js';
+import { resolveLocalConfig, localize, LOCAL_ENV } from './local-settings.js';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { GENRES, GENRE_PROFILES, recommendCapabilities, type Genre } from './genres.js';
@@ -108,12 +110,12 @@ export async function main(argv = process.argv.slice(2), dependencies: { runner?
   if (values.json && !values.yes && !values['dry-run']) throw new Error('--json requires --yes or --dry-run for init/update.');
   let raw: unknown = detection.config;
   if (command === 'update') {
-    raw = readJson(root, CONFIG_PATH);
+    raw = resolveLocalConfig(readJson(root, CONFIG_PATH), root);
     if (!raw) throw new Error('No saved configuration; use init first.');
   }
   if (values.config) {
     const configFile = path.resolve(values.config);
-    raw = readJson(path.dirname(configFile), path.basename(configFile));
+    raw = resolveLocalConfig(readJson(path.dirname(configFile), path.basename(configFile)), path.basename(path.dirname(configFile)) === '.agents' ? path.dirname(path.dirname(configFile)) : path.dirname(configFile));
     if (!raw) throw new Error('Configuration file not found.');
   }
   let config: Config = validateConfig(raw);
@@ -171,7 +173,8 @@ export async function main(argv = process.argv.slice(2), dependencies: { runner?
     if (values['preferred-agent']) candidate.preferredAgent = values['preferred-agent'] as Config['preferredAgent'];
     return candidate;
   };
-  let candidate = configure(config);
+  const freshPrompts = command !== 'update' && !values.config && !values.yes && !values['dry-run'];
+  let candidate = configure(freshPrompts ? promptDefaults(config) : config);
   const capabilitiesKnown = detection.capabilitiesKnown || !!values.capabilities || !!values.config || command === 'update';
   if (values.genre && !capabilitiesKnown) {
     candidate.capabilities = recommendCapabilities(candidate.genre, candidate.capabilities, false);
@@ -211,7 +214,7 @@ export async function main(argv = process.argv.slice(2), dependencies: { runner?
     if (!values.yes && !await confirm('Run this external generator?')) { console.log(colorized('warning', 'Cancelled; no files written.')); return; }
     detection = await scaffoldProject(invocation, dependencies.runner, !!values.json);
     scaffoldCompleted = true;
-    candidate = configure({ ...detection.config, genre: candidate.genre, preferredAgent: candidate.preferredAgent, learningJournal: candidate.learningJournal });
+    candidate = configure({ ...(freshPrompts ? promptDefaults(detection.config) : detection.config), genre: candidate.genre, preferredAgent: candidate.preferredAgent, learningJournal: candidate.learningJournal });
   }
   if (interactive) config = await questionnaire(candidate, undefined, { mode, skipIdentity: true, askAgent: !values['preferred-agent'], capabilitiesKnown: scaffoldCompleted ? detection.capabilitiesKnown || !!values.capabilities : capabilitiesKnown });
   else config = validateConfig(candidate);
@@ -225,6 +228,7 @@ export async function main(argv = process.argv.slice(2), dependencies: { runner?
     }
   }
   const result = plan(root, config, command === 'update' ? 'update' : 'init');
+  const publicResult = { ...result, config: localize(config).config, changes: result.changes.map(change => change.path === LOCAL_ENV ? { ...change, before: change.before === undefined ? undefined : '[Local values hidden]', after: '[Local values hidden]' } : change) };
   if (!values.json) {
     console.log(colorized('info', 'Profile: ' + config.genre + '; agent: ' + config.preferredAgent + '; capabilities: ' + config.capabilities.join(', ') + '; package manager: ' + config.packageManager + '; database: ' + config.database + '; deployment: ' + config.deployment.kind + '; automatic live update: ' + getOperations(config).portainerStackUpdate));
     console.log(colorized('heading', `\n${values['dry-run'] ? 'Preview' : 'Plan'} for ${config.projectName}\nTarget: ${root}`));
@@ -239,19 +243,19 @@ export async function main(argv = process.argv.slice(2), dependencies: { runner?
     }
   }
   if (result.conflicts.length) {
-    if (values.json) console.log(json({ ...result, written: false }));
+    if (values.json) console.log(json({ ...publicResult, written: false }));
     else console.log(colorized('error', (scaffoldCompleted ? 'Application scaffold remains; no Agent Kit files written. ' : 'No files written. ') + 'Reconcile existing instructions manually, or generate into a separate directory with --config.'));
     process.exitCode = 2;
     return;
   }
   if (values['dry-run']) {
-    if (values.json) console.log(json({ ...result, written: false }));
+    if (values.json) console.log(json({ ...publicResult, written: false }));
     else console.log(colorized('success', 'Dry run complete; no files or directories written.'));
     return;
   }
   if (interactive && !await confirm()) { console.log(colorized('warning', scaffoldCompleted ? 'Cancelled Agent Kit generation; application scaffold remains.' : 'Cancelled; no files written.')); return; }
   applyPlan(result);
-  if (values.json) console.log(json({ ...result, written: true }));
+  if (values.json) console.log(json({ ...publicResult, written: true }));
   else console.log(completionSummary(result, scaffoldCompleted));
 }
 

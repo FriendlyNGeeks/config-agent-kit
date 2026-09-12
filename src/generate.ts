@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { CONFIG_PATH, STATE_PATH, VERSION, json, object, type Config } from './config.js';
 import { atomicWrite, exists, hash, read, readJson, safePath } from './files.js';
 import { BEGIN, END, MANAGED_FILES, ROLE_MIGRATIONS, render } from './render.js';
+import { localize, LOCAL_ENV, mergeLocalEnv, mergeIgnores } from './local-settings.js';
 
 interface State { schemaVersion: 1; templateVersion: string; files: Record<string, string> }
 export interface Change { path: string; action: 'create' | 'update' | 'delete' | 'unchanged' | 'conflict'; before?: string; after?: string; reason?: string }
@@ -11,11 +12,11 @@ export function managed(content: string): { prefix: string; block: string; suffi
   let start = content.indexOf(BEGIN);
   const end = content.indexOf(END);
   if (start < 0 || end < start || content.indexOf(BEGIN, start + BEGIN.length) >= 0 || content.indexOf(END, end + END.length) >= 0) return undefined;
-  if (content.startsWith('---\n') || content.startsWith('---\r\n')) {
-    const header = /^---\r?\n[\s\S]*?\r?\n---\r?\n\s*/.exec(content);
-    if (!header || header[0].length !== start) return undefined;
-    start = 0;
-  }
+  // Include the metadata in the protected block even when custom notes precede it.
+  const headers = [...content.slice(0, start).matchAll(/^---\r?\n(?:(?!^---\r?$)[\s\S])*?\r?\n---\r?\n\s*/gm)];
+  const header = headers.find(match => match.index + match[0].length === start);
+  if (header) start = header.index;
+  else if (content.startsWith('---\n') || content.startsWith('---\r\n')) return undefined;
   return { prefix: content.slice(0, start), block: content.slice(start, end + END.length), suffix: content.slice(end + END.length) };
 }
 const bodyHash = (s: string) => hash(normalize(managed(s)?.block ?? s));
@@ -65,10 +66,20 @@ export function plan(root: string, config: Config, mode: 'init' | 'update'): Pla
     changes.push({ path: file, action: next === undefined && !after.trim() ? 'delete' : before === after ? 'unchanged' : 'update', before, ...(next === undefined && !after.trim() ? {} : { after }) });
   }
   const newState: State = { schemaVersion: 1, templateVersion: VERSION, files: Object.fromEntries(Object.entries(desired).map(([file, content]) => [file, bodyHash(content)])) };
-  for (const [file, after] of [[CONFIG_PATH, json(config)], [STATE_PATH, json(newState)]] as const) {
+  const local = localize(config);
+  for (const [file, after] of [[CONFIG_PATH, json(local.config)], [STATE_PATH, json(newState)]] as const) {
     const before = read(root, file);
     const unmanaged = mode === 'init' && before !== undefined;
     changes.push({ path: file, action: unmanaged ? 'conflict' : before === after ? 'unchanged' : before === undefined ? 'create' : 'update', before, after, ...(unmanaged ? { reason: 'Existing metadata is not owned by this generator.' } : {}) });
+  }
+  const envBefore = read(root, LOCAL_ENV);
+  const envAfter = mergeLocalEnv(envBefore, local.values);
+  changes.push({ path: LOCAL_ENV, action: envBefore === envAfter ? 'unchanged' : envBefore === undefined ? 'create' : 'update', before: envBefore, after: envAfter });
+  for (const file of ['.gitignore', '.npmignore', '.dockerignore']) {
+    const before = read(root, file);
+    if (before === undefined && file !== '.gitignore') continue;
+    const after = mergeIgnores(before);
+    changes.push({ path: file, action: before === after ? 'unchanged' : before === undefined ? 'create' : 'update', before, after });
   }
   return { root, config, changes, conflicts: changes.filter(c => c.action === 'conflict').map(c => c.path) };
 }
@@ -83,7 +94,9 @@ export function applyPlan(p: Plan): void {
       if (change.action === 'unchanged') continue;
       const file = safePath(p.root, change.path);
       if (change.action === 'delete') fs.unlinkSync(file);
-      else atomicWrite(file, change.after!);
+      else {
+        atomicWrite(file, change.after!, change.path === LOCAL_ENV ? 0o600 : undefined);
+      }
       completed.push(change);
     }
   } catch (error) {
@@ -100,6 +113,7 @@ export function applyPlan(p: Plan): void {
 }
 
 export function diff(change: Change): string {
+  if (change.path === LOCAL_ENV) return `--- ${LOCAL_ENV}\n+++ ${LOCAL_ENV}\n[Local values hidden]`;
   const before = (change.before ?? '').split('\n'), after = (change.after ?? '').split('\n');
   let prefix = 0;
   while (prefix < before.length && prefix < after.length && before[prefix] === after[prefix]) prefix++;

@@ -1,6 +1,6 @@
 {
   "name": "config-agent-kit",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "author": "FriendlyNGeeks",
   "license": "MIT",
   "description": "Configure coding-agent instructions and skills, with guided native project scaffolding",

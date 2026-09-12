@@ -6,6 +6,7 @@ export const palette = {
   success: ['green'], warning: ['yellow'], error: ['red', 'bold'],
   muted: ['dim'], create: ['green'], update: ['cyan'], delete: ['yellow'],
   conflict: ['red', 'bold'], unchanged: ['dim'],
+  privacy: ['magenta', 'bold'],
 } satisfies Record<string, Parameters<typeof styleText>[0]>;
 export type Tone = keyof typeof palette;
 type Output = { isTTY?: boolean };

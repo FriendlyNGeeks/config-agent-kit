@@ -33,11 +33,11 @@ export function readJson(root: string, relative: string): unknown {
   if (content === undefined) return undefined;
   try { return JSON.parse(content.replace(/^\uFEFF/, '')); } catch { throw new Error(`Invalid JSON in ${relative}.`); }
 }
-export function atomicWrite(file: string, content: string): void {
+export function atomicWrite(file: string, content: string, mode?: number): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const temp = `${file}.${crypto.randomUUID()}.tmp`;
   try {
-    fs.writeFileSync(temp, content, { flag: 'wx', mode: exists(file) ? fs.statSync(file).mode : 0o644 });
+    fs.writeFileSync(temp, content, { flag: 'wx', mode: mode ?? (exists(file) ? fs.statSync(file).mode : 0o644) });
     fs.renameSync(temp, file);
   } finally { if (exists(temp)) fs.unlinkSync(temp); }
 }

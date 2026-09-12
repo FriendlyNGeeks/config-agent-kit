@@ -3,6 +3,7 @@ import { detect } from './detect.js';
 import { exists, read, readJson, safePath } from './files.js';
 import { plan } from './generate.js';
 import { MANAGED_FILES } from './render.js';
+import { resolveLocalConfig } from './local-settings.js';
 
 export interface Finding { level: 'error' | 'warning' | 'info'; code: string; message: string }
 export function doctor(root: string): { ok: boolean; findings: Finding[] } {
@@ -11,7 +12,7 @@ export function doctor(root: string): { ok: boolean; findings: Finding[] } {
   let config: Config | undefined;
   try {
     const raw = readJson(root, CONFIG_PATH);
-    if (raw !== undefined) config = validateConfig(raw);
+    if (raw !== undefined) config = validateConfig(resolveLocalConfig(raw, root));
     else add('warning', 'NOT_INITIALIZED', 'No scaffold configuration. Existing instructions will be checked for common legacy issues.');
     const detected = detect(root);
     for (const warning of detected.warnings) {

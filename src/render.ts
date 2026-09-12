@@ -2,6 +2,7 @@ import { agentAdapter, ADAPTER_FILES } from './agents.js';
 import { reusableSkills, SKILL_NAMES } from './skills.js';
 import { operationalRoles } from './roles.js';
 import { MARKDOWN_METADATA } from './metadata.js';
+import { localize, LOCAL_GUIDANCE } from './local-settings.js';
 import { VERSION, COMMAND_KEYS, getOperations, type Config } from './config.js';
 
 export const BEGIN = '<!-- agent-scaffold:begin -->';
@@ -13,9 +14,11 @@ const block = (body: string) => `${BEGIN}\n${body.trim()}\n${END}\n`;
 export const packageCommand = (manager: Config['packageManager'], script: string) => `${manager} run ${script}`;
 
 export function render(config: Config): Record<string, string> {
+  config = localize(config).config;
   const files: Record<string, string> = {};
   const add = (file: string, body: string) => {
-    files[file] = (file.startsWith('.agents/roles/') ? `---\n${MARKDOWN_METADATA}\n---\n\n` : '') + block(body);
+    const attributed = file === 'AGENTS.md' || file === '.agents/project.md' || file.startsWith('.agents/roles/');
+    files[file] = (attributed ? `---\n${MARKDOWN_METADATA}\n---\n\n` : '') + block(body + (attributed ? '\n\n' + LOCAL_GUIDANCE : ''));
   };
   const selected = (cap: Config['capabilities'][number]) => config.capabilities.includes(cap);
   if (selected('web')) add('.agents/roles/frontend.md', `# Frontend\n
@@ -70,7 +73,7 @@ Own schema, validation and migration choices using the existing tooling. Ask abo
   const triggers: Record<string, string> = { architect: 'Scaffolding, workspace layout and ownership', middleware: 'Shared contracts, configuration bridges, SDKs, IPC and preload', qa: 'Behavior changes, validation, rebuilds, versions and changelog', security: 'Authentication, credentials, environment/ignore files and trust boundaries', devops: 'Docker, Compose, publication and Portainer' };
   for (const [file, body] of Object.entries(reusableSkills(config))) {
     const end = body.indexOf('\n---\n', 4) + 5;
-    files[file] = body.slice(0, end) + '\n' + block(body.slice(end));
+    files[file] = body.slice(0, end) + '\n' + block(body.slice(end) + '\n\n' + LOCAL_GUIDANCE);
   }
   const routes = Object.keys(files).filter(f => !f.includes('/skills/')).map(f => { const role = f.split('/').pop()!.replace('.md', ''); return `- ${triggers[role] ?? role}: read \`${f}\` when affected.`; }).join('\n');
   add('AGENTS.md', `# Project instructions\n

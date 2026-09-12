@@ -8,11 +8,12 @@ import { spawnSync } from 'node:child_process';
 import { detect } from '../dist/detect.js';
 import { validateConfig, VERSION, CONFIG_PATH, STATE_PATH } from '../dist/config.js';
 import { render } from '../dist/render.js';
-import { applyPlan, plan } from '../dist/generate.js';
+import { applyPlan, plan, managed } from '../dist/generate.js';
 import { doctor } from '../dist/doctor.js';
 import { PassThrough, Writable } from 'node:stream';
 import { COMPOSE_HELP, questionnaire } from '../dist/prompts.js';
 import { hash } from '../dist/files.js';
+import { resolveLocalConfig, localize, IGNORE_ENTRIES } from '../dist/local-settings.js';
 
 const cli = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
 const tempBase = path.resolve(process.env.AGENT_SCAFFOLD_TEST_TMP ?? path.join(os.tmpdir(), 'agent-scaffold-tests'));
@@ -266,7 +267,8 @@ test('CLI supports saved config and explicit Portainer capability overrides', ()
   const result = run('init', root, '--config', path.join(source, 'answers.json'), '--capabilities', 'web,api', '--deployment', 'portainer', '--host', 'enigma', '--stack', 'keep-existing-name', '--yes');
   assert.equal(result.status, 0, result.stderr);
   assert.match(get(root, '.agents/roles/devops.md'), /keep-existing-name/);
-  assert.match(get(root, '.agents/roles/devops.md'), /enigma/);
+  assert.match(get(root, '.agents/roles/devops.md'), /AGENT_DEPLOY_HOST/);
+  assert.match(get(root, 'secret.agent.env'), /enigma/);
   assert.doesNotMatch(get(root, '.agents/roles/devops.md'), /sample-suite/);
   assert.equal(fs.existsSync(path.join(root, '.agents/roles/backend.md')), true);
 });
@@ -302,7 +304,7 @@ test('full operational profile retains all role requirements with one authoritat
   for (const rule of ['.gitignore', '.dockerignore', '.env.local', 'ARG, ENV, or COPY', 'earlier layers', 'X-API-Key']) assert.ok(files['.agents/roles/security.md'].includes(rule), rule);
   for (const rule of ['packages/config', 'packages/types', 'packages/sdk', 'producers and consumers', 'backward compatibility']) assert.ok(files['.agents/roles/middleware.md'].includes(rule), rule);
   for (const rule of ['CHANGELOG.md', 'same task', 'prismaGenerate', 'dockerUp']) assert.ok(files['.agents/roles/qa.md'].includes(rule), rule);
-  for (const rule of ['/srv/example-homepage/services.yaml', '`watchtower`', 'only the matching', 'Stop if Git', 'Stop on publication failure', 'obsolete services pruned', 'explicitly requested as recovery']) assert.ok(files['.agents/skills/portainer-deploy/SKILL.md'].includes(rule), rule);
+  for (const rule of ['${AGENT_HOMEPAGE_PATH}', '`${AGENT_HOMEPAGE_HOST}`', 'only the matching', 'Stop if Git', 'Stop on publication failure', 'obsolete services pruned', 'explicitly requested as recovery']) assert.ok(files['.agents/skills/portainer-deploy/SKILL.md'].includes(rule), rule);
   assert.match(files['.agents/project.md'], /pnpm|npm run docker:publish-api:arm64/);
   assert.equal(files['.agents/deploy.md'], undefined);
 });
@@ -328,8 +330,8 @@ test('CLI selects separate Docker, Portainer and Electron policies and rejects i
   const result = run('init', root, '--yes', '--electron', 'true', '--electron-rebuild', 'false', '--docker-workflow', 'docker-first', '--docker-compose', 'docker/dev.yml', '--docker-rebuild', 'true', '--deployment', 'portainer', '--host', 'lab-b', '--stack', 'service', '--compose', 'portainer.yml', '--portainer-update', 'true');
   assert.equal(result.status, 0, result.stderr);
   const c = JSON.parse(get(root, CONFIG_PATH));
-  assert.equal(c.operations.dockerComposeFile, 'docker/dev.yml');
-  assert.equal(c.deployment.composeFile, 'portainer.yml');
+  assert.equal(c.operations.dockerComposeFile, '${AGENT_DOCKER_COMPOSE_PATH}');
+  assert.equal(c.deployment.composeFile, '${AGENT_DEPLOY_COMPOSE_PATH}');
   assert.equal(c.operations.electronRebuild, false);
   assert.equal(c.operations.portainerStackUpdate, true);
   assert.ok(c.capabilities.includes('desktop'));
@@ -397,7 +399,7 @@ test('Docker yes asks publication settings while Portainer no skips its details'
   assert.deepEqual(result.publishing, { dockerHubUsername: 'myteam', architecture: 'x64' });
   assert.doesNotMatch(transcript, /Target SSH alias|credential lookup|Portainer deployment Compose|Automatically complete verification/);
   const text = render(result)['.agents/skills/docker-publish/SKILL.md'];
-  assert.ok(text.includes('myteam/<package-name>-<service-name>:<version>-x64'));
+  assert.ok(text.includes('${AGENT_DOCKER_USERNAME}/<package-name>-<service-name>:<version>-x64'));
   assert.ok(text.includes('linux/amd64'));
   assert.doesNotMatch(text, /friendlyngeeks|:arm64/);
 });
@@ -407,6 +409,83 @@ test('remote Portainer skips local Compose and external credentials skip Homepag
   assert.equal(result.deployment.kind, 'portainer');
   assert.doesNotMatch(transcript, /Local Compose file path|Automatically rebuild.recreate|SSH host holding Homepage|Absolute Homepage/);
   assert.ok(render(result)['.agents/skills/docker-publish/SKILL.md'].includes('linux/386'));
+});
+
+test('invalid secondary answers repeat only their question and keep earlier choices', { timeout: 5000 }, async () => {
+  const { result, transcript } = await answerPrompts(base(), ['', '', '', '', 'no', 'yes', 'none', 'yes', 'BAD USER', 'myteam', 'x86', '../bad.yml', 'portainer.yml', 'bad stack', 'my-stack', '', 'bad host', 'lab-a', 'no', 'homepage', 'bad host', 'homepage-host', '', '../wrong', '/srv/homepage/services.yaml', '', 'no', '']);
+  assert.equal(result.deployment.host, 'lab-a');
+  assert.equal(result.deployment.stackName, 'my-stack');
+  assert.equal(result.publishing.dockerHubUsername, 'myteam');
+  assert.equal(result.operations.homepageHost, 'homepage-host');
+  assert.equal(result.operations.homepagePath, '/srv/homepage/services.yaml');
+  assert.equal((transcript.match(/Project name \[/g) ?? []).length, 1);
+  assert.equal((transcript.match(/Target SSH hostname or alias \(required\)/g) ?? []).length, 3);
+  assert.equal((transcript.match(/Does this project use Electron\?/g) ?? []).length, 1);
+});
+
+test('local settings round-trip, ignore files merge, and updates retain unrelated local entries', () => {
+  const root = fixture();
+  const config = validateConfig({ ...base(), deployment: { kind: 'portainer', host: 'private-lab', stackName: 'sample', composeFile: 'ops/portainer.yml' }, operations: { homepageHost: 'private-homepage', homepagePath: '/srv/private/widgets.yaml', dockerWorkflow: 'compose', dockerComposeFile: 'ops/docker.yml' }, publishing: { dockerHubUsername: 'privateuser', architecture: 'arm64' }, apps: [{ path: 'apps/web', capabilities: ['web'] }] });
+  for (const file of ['.gitignore', '.npmignore', '.dockerignore']) put(root, file, '# Keep my rules\r\nnode_modules/\r\n!secret.agent.env\r\n');
+  put(root, 'secret.agent.env', '# Keep my entries\nUNRELATED="keep-me"\n');
+  applyPlan(plan(root, config, 'init'));
+  const stored = JSON.parse(get(root, CONFIG_PATH));
+  assert.deepEqual(validateConfig(resolveLocalConfig(stored, root)), config);
+  for (const file of Object.keys(render(config))) {
+    const content = get(root, file);
+    for (const value of Object.values(localize(config).values)) assert.ok(!content.includes(value), file + ' leaks ' + value);
+  }
+  assert.match(get(root, 'secret.agent.env'), /UNRELATED="keep-me"/);
+  for (const file of ['.gitignore', '.npmignore', '.dockerignore']) {
+    const content = get(root, file);
+    assert.ok(content.startsWith('# Keep my rules\r\nnode_modules/\r\n!secret.agent.env\r\n'));
+    for (const entry of IGNORE_ENTRIES) assert.ok(content.includes(entry));
+  }
+  assert.ok(plan(root, config, 'update').changes.every(c => c.action === 'unchanged'));
+  const updated = structuredClone(config); updated.deployment.host = 'another-lab';
+  applyPlan(plan(root, updated, 'update'));
+  assert.match(get(root, 'secret.agent.env'), /AGENT_DEPLOY_HOST='another-lab'/);
+  assert.match(get(root, 'secret.agent.env'), /UNRELATED="keep-me"/);
+  const cli = run('update', root, '--yes', '--json');
+  assert.equal(cli.status, 0, cli.stderr);
+  assert.doesNotMatch(cli.stdout, /privateuser|another-lab|keep-me|private-homepage/);
+  assert.equal(doctor(root).findings.some(f => f.code === 'INVALID_PROJECT'), false);
+});
+
+test('new projects create gitignore only, and missing local values stop updates without writes', () => {
+  const root = fixture();
+  applyPlan(plan(root, base(), 'init'));
+  assert.ok(get(root, '.gitignore').includes('secret.agent.env'));
+  assert.equal(fs.existsSync(path.join(root, '.npmignore')), false);
+  assert.equal(fs.existsSync(path.join(root, '.dockerignore')), false);
+  const configBefore = get(root, CONFIG_PATH);
+  put(root, 'secret.agent.env', '# Missing local values\n');
+  const result = run('update', root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Missing AGENT_HOMEPAGE_HOST/);
+  assert.equal(get(root, CONFIG_PATH), configBefore);
+});
+
+test('updating a legacy installation moves embedded values into the local file', () => {
+  const root = fixture();
+  const config = validateConfig({ ...base(), deployment: { kind: 'portainer', host: 'legacy-host', stackName: 'sample' }, operations: { homepagePath: '/srv/legacy/services.yaml' } });
+  const values = localize(config).values;
+  const state = { schemaVersion: 1, templateVersion: VERSION, files: {} };
+  for (const [file, template] of Object.entries(render(config))) {
+    let content = template;
+    for (const [key, value] of Object.entries(values)) content = content.replaceAll('${' + key + '}', value);
+    put(root, file, content);
+    state.files[file] = hash(managed(content).block);
+  }
+  put(root, CONFIG_PATH, config);
+  put(root, STATE_PATH, state);
+  const result = run('update', root);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(get(root, 'secret.agent.env'), /legacy-host/);
+  assert.doesNotMatch(get(root, '.agents/roles/devops.md'), /legacy-host/);
+  assert.doesNotMatch(get(root, CONFIG_PATH), /legacy-host/);
+  assert.deepEqual(validateConfig(resolveLocalConfig(JSON.parse(get(root, CONFIG_PATH)), root)), config);
+  assert.match(result.stdout, /PRIVACY: Keep secret.agent.env in ignore files/);
 });
 
 test('publication validates namespace and architecture and CLI switches conventional script mappings', () => {
@@ -480,11 +559,11 @@ test('unmanaged destination blocks migration and legacy edited roles remain prot
   assert.ok(plan(root, validateConfig(base()), 'update').conflicts.includes('.agents/qa.md'));
 });
 
-test('generated roles and skills include attribution and retain it across updates', () => {
+test('generated project instructions, roles and skills include attribution and retain it across updates', () => {
   const root = fixture();
   const c = validateConfig({ ...base(), capabilities: ['web', 'api', 'desktop', 'python', 'native'], database: 'postgres', deployment: { kind: 'portainer', host: 'lab', stackName: 'sample' }, learningJournal: true });
   applyPlan(plan(root, c, 'init'));
-  const files = Object.keys(render(c)).filter(p => p.startsWith('.agents/roles/') || p.endsWith('/SKILL.md'));
+  const files = Object.keys(render(c)).filter(p => p === 'AGENTS.md' || p === '.agents/project.md' || p.startsWith('.agents/roles/') || p.endsWith('/SKILL.md'));
   for (const file of files) {
     const content = get(root, file);
     assert.ok(content.startsWith('---\n'), file);
@@ -524,7 +603,7 @@ test('Homepage prompts for a user path, retries blank input, and saves the answe
   const { result, transcript } = await answerPrompts(base(), ['', '', '', '', 'no', 'yes', 'none', 'yes', 'team', 'arm64', 'portainer.yml', '', 'lab-a', 'no', 'homepage', 'my-host', '', '/srv/my-homepage/services.yaml', '', 'no', '']);
   assert.equal(result.operations.homepagePath, '/srv/my-homepage/services.yaml');
   assert.match(transcript, /Enter your services.yaml path/);
-  assert.ok(render(result)['.agents/skills/portainer-deploy/SKILL.md'].includes('/srv/my-homepage/services.yaml'));
+  assert.ok(render(result)['.agents/skills/portainer-deploy/SKILL.md'].includes('${AGENT_HOMEPAGE_PATH}'));
 });
 
 test('unconfigured Homepage path has no personal default and blocks credential lookup in guidance', () => {

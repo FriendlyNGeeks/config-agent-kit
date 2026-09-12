@@ -4,6 +4,26 @@
 
 Requires Node.js 22 or newer. Zero runtime dependencies. Upstream generators have their own requirements; current Vite starters require Node.js 22.12+ on the Node 22 line.
 
+## Quickstart
+
+**Basic** — Configure agent instructions with a few guided questions.
+
+~~~powershell
+npx config-agent-kit my-app --prompt-mode vibe
+~~~
+
+**Intermediate** — Choose project, database, Docker, and agent settings through the full questionnaire.
+
+~~~powershell
+npx config-agent-kit my-app --prompt-mode pro
+~~~
+
+**Advanced** — Write API/PostgreSQL guidance for GPT directly from flags, without prompts.
+
+~~~powershell
+npx config-agent-kit my-api --genre service --capabilities api --database postgres --preferred-agent gpt --yes
+~~~
+
 ## Roadmap
 
 | Status | Feature | Description | Priority |
@@ -65,7 +85,16 @@ Terminal styling is centralized in `src/colorized.ts`. Colors are enabled for in
 
 ## Generated layout
 
+Local paths, Docker usernames, and deployment/Homepage hostnames or SSH aliases are stored in the project-root `secret.agent.env`. Generated Markdown and `.agents/scaffold.json` contain `${AGENT_*}` references. The toolkit resolves these references as data when loading saved configuration; agents must read only the keys needed for their task, without sourcing the file or printing values. Keep actual passwords and API tokens in your credential provider.
+
+Initialization and updates create `.gitignore` if missing and append protection rules to existing root `.gitignore`, `.npmignore`, and `.dockerignore` files, preserving existing content. Rules cover `secret.agent.env`, `.agents/scaffold.json`, and `.agents/.scaffold-state.json`, plus alternate scaffold-state paths. Existing tracked files remain tracked until you explicitly untrack them. Add these exclusions to any packaging or deployment ignore files created later. The completion summary highlights this reminder in magenta when color is enabled.
+
+Updating an older installation moves configured local values into `secret.agent.env`. Keep this file with your local checkout; missing referenced values stop updates until restored. Custom guidance outside managed sections is preserved and should be reviewed separately for previously embedded private values.
+
+Required prompt fields are validated in place: a missing or invalid name, username, hostname/alias, or path repeats only that question and preserves earlier answers.
+
 ```text
+secret.agent.env
 AGENTS.md
 .agents/
   project.md
@@ -97,7 +126,7 @@ Architect, QA, and security roles are always included. Middleware is included fo
 
 ## Optional learning journal
 
-The questionnaire asks whether to include learning-journal; default is no. Use `--learning-journal true` or `--learning-journal false` noninteractively.
+New interactive setups default to Service / API, GPT / Codex, PostgreSQL when no database is detected, Docker with the docker-first workflow, automatic local Compose rebuilding, and learning-journal enabled. Writing generated files defaults to yes (`Y/n`). Saved configurations and explicit options take precedence. Noninteractive defaults are unchanged; use `--learning-journal true` or `--learning-journal false` to select that skill noninteractively.
 
 The skill records durable decisions, verified fixes, flows, pitfalls, examples, and open questions in focused `learning/` documents. It searches existing topics before adding another, links to authoritative sources, and respects task scope. It creates a small topic index when there is actual learning content.
 
@@ -144,19 +173,6 @@ Image references follow `<username>/<package-name>-<service-name>:<version>-<arc
 Portainer deployment retains verification, task-only Git commit/push, changed-image publication, API stack update, image pulling, obsolete-service pruning, persistent storage preservation, bounded health checks, and recovery references. Failures stop subsequent steps. When Homepage lookup is selected, the CLI asks for the absolute path to your services.yaml on the selected SSH host. It reads only the matching Portainer widget; there is no default file path. Noninteractive configurations can supply --homepage-path; an unresolved path must be provided before credential lookup or deployment. Keys stay in memory and are sent only as X-API-Key. Host-side Compose recovery requires explicit scope.
 
 The toolkit writes these instructions; running the toolkit itself never pushes Git, publishes images, or changes a live stack.
-
-## Prompt modes and genres
-
-Start with a plain-language goal. Vibing asks for a name, genre, optional starter, preferred agent, and at most one runtime clarification when detection is ambiguous. It skips database, security, Docker, Electron rebuild, and credential questionnaires. The generated instructions put routine security, validation and data preservation responsibilities on the coding agent. Existing explicit operational settings remain intact. Fresh projects do not enable automatic live deployment.
-
-Pro exposes the full existing menu. Both modes produce the same validated configuration and use the same concise canonical rules. Specialized deployment and rebuild procedures remain in conditional skills. Revisit settings at any time:
-
-~~~powershell
-npx config-agent-kit my-app --prompt-mode vibe
-npx config-agent-kit update my-app --interactive --prompt-mode pro
-~~~
-
-Genres are web, mobile, game, data-science, embedded, service, desktop, library, and general (not sure yet). They recommend technical capabilities without replacing detected or explicitly selected ones. Empty folders have an explicit empty state; a fallback web capability is not treated as proof of a web project.
 
 ## Native project scaffolding
 

@@ -7,20 +7,15 @@ export type PromptMode = 'vibe' | 'pro';
 export interface SetupOptions { mode?: PromptMode; allowScaffold: boolean; requireScaffold: boolean; capabilitiesKnown: boolean; selection?: ScaffoldSelection }
 export async function setupQuestionnaire(defaults: Config, options: SetupOptions, io: PromptIO = terminalIO): Promise<{ config: Config; mode: PromptMode; selection?: ScaffoldSelection }> {
   const session = promptSession(io);
-  const { ask, pick, yesNo } = session;
+  const { askValid, pick, yesNo } = session;
   try {
     const mode = options.mode ?? await pick<PromptMode>('How would you like to work?', ['vibe', 'pro'], 'vibe', { vibe: 'Vibing — describe what you want; use sensible defaults', pro: "I'm A Pro — show all project and operational settings" });
     let config = structuredClone(defaults);
-    while (true) {
-      config.projectName = await ask('Project name', config.projectName);
-      config.genre = await pick('What are you building?', GENRES, config.genre, Object.fromEntries(GENRES.map(g => [g, GENRE_PROFILES[g].label])));
-      config.capabilities = recommendCapabilities(config.genre, config.capabilities, options.capabilitiesKnown);
-      try {
-        if (!/^(?:@[a-zA-Z0-9_.-]+\/)?[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(config.projectName)) throw new Error('Use a package-style project name.');
-        break;
-      }
-      catch (error) { io.output.write(session.paint('warning', (error as Error).message + '\n')); }
-    }
+    config.projectName = await askValid('Project name', config.projectName, value => {
+      if (value.length > 120 || !/^(?:@[a-zA-Z0-9_.-]+\/)?[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(value)) throw new Error('Use a package-style project name of at most 120 characters.');
+    });
+    config.genre = await pick('What are you building?', GENRES, config.genre, Object.fromEntries(GENRES.map(g => [g, GENRE_PROFILES[g].label])));
+    config.capabilities = recommendCapabilities(config.genre, config.capabilities, options.capabilitiesKnown);
     let selection = options.selection;
     const providers = SCAFFOLD_PROVIDERS.filter(p => p.genres.includes(config.genre));
     if (!selection && options.allowScaffold && (options.requireScaffold || providers.length > 0 && await yesNo('Create application starter files with an upstream generator? Choose no to configure this folder only.', false))) {
