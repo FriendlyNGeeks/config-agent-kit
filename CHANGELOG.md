@@ -1,12 +1,21 @@
 # Changelog
 
-## 1.4.2 — 2026-09-11
+## 1.4.3 — 2026-10-03
 
 ### Security Improvements
 
 - Add explicit generated guidance for secret scanning, dependency vulnerability review, and configured static analysis.
 - Add concrete XSS controls for safe rendering, contextual encoding, allowlist sanitization, dangerous-payload tests, and Content Security Policy preservation.
 - Add concrete SQL-injection controls for parameterized queries, safe ORM use, identifier allowlists, and injection-shaped tests.
+
+### Documentation and Release
+
+- Update package and lockfile versions to 1.4.3.
+
+## 1.4.2 — 2026-09-11
+
+### Security Improvements
+
 - Move local paths, Docker usernames, and hostnames/SSH aliases into secret.agent.env; generated instructions and scaffold.json use variable references instead of embedding these values.
 - Load referenced settings as data without executing the file; stop updates when required local values are missing.
 - Hide secret.agent.env contents from JSON previews and diffs, and restrict newly written local settings files to owner access on POSIX systems.
