@@ -366,6 +366,17 @@ test('doctor checks operational command mappings and environment-ignore gaps', (
   assert.ok(result.findings.some(f => f.code === 'IGNORE_MISSING' && f.message.includes('.dockerignore')));
 });
 
+test('generated security guidance covers automated review, XSS and SQL injection', () => {
+  const security = render(validateConfig({ ...base(), capabilities: ['web', 'api'], database: 'postgres' }))['.agents/roles/security.md'];
+  for (const requirement of [
+    'configured secret scanner', 'rotate the credential', 'package manager\'s audit command',
+    'configured advisory scanner', 'configured static-analysis', 'framework-safe rendering',
+    'contextual output encoding', 'allowlist-based library', 'Content Security Policy',
+    'parameterized queries', 'prepared statements', 'Never concatenate untrusted values into SQL',
+    'dynamic identifiers against explicit allowlists', 'injection-shaped input'
+  ]) assert.ok(security.includes(requirement), requirement);
+});
+
 async function answerPrompts(config, answers) {
   const input = new PassThrough();
   let transcript = '', count = 0;

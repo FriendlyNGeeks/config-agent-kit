@@ -4,6 +4,9 @@
 
 ### Security Improvements
 
+- Add explicit generated guidance for secret scanning, dependency vulnerability review, and configured static analysis.
+- Add concrete XSS controls for safe rendering, contextual encoding, allowlist sanitization, dangerous-payload tests, and Content Security Policy preservation.
+- Add concrete SQL-injection controls for parameterized queries, safe ORM use, identifier allowlists, and injection-shaped tests.
 - Move local paths, Docker usernames, and hostnames/SSH aliases into secret.agent.env; generated instructions and scaffold.json use variable references instead of embedding these values.
 - Load referenced settings as data without executing the file; stop updates when required local values are missing.
 - Hide secret.agent.env contents from JSON previews and diffs, and restrict newly written local settings files to owner access on POSIX systems.
