@@ -16,7 +16,7 @@ concurrency:
 jobs:
   test:
     if: github.ref == 'refs/heads/main'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Check out commit
         uses: actions/checkout@v6

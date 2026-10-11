@@ -12,6 +12,7 @@
 ### Documentation and Release
 
 - Document PCB setup, copper-layer preferences, vendor sourcing, and KiCAD MCP setup; update package and lockfile versions to 1.5.0.
+- Run release tests on a GitHub-hosted Linux runner so publishing does not depend on an offline self-hosted runner.
 
 ## 1.4.3 — 2026-10-03
 
