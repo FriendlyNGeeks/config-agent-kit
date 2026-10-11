@@ -19,7 +19,11 @@ export interface Operations {
 }
 export const CONFIG_PATH = '.agents/scaffold.json';
 export const STATE_PATH = '.agents/.scaffold-state.json';
-export const CAPABILITIES = ['web', 'api', 'desktop', 'python', 'native'] as const;
+export const CAPABILITIES = ['web', 'api', 'desktop', 'python', 'native', 'pcb'] as const;
+export const PCB_SOFTWARE = ['kicad', 'jlcone-desktop'] as const;
+export const PCB_MANUFACTURERS = ['jlcpcb', 'pcbway', 'microfab'] as const;
+export const PCB_SIDES = ['no-preference', 'single-sided', 'double-sided'] as const;
+export interface PcbConfig { software: typeof PCB_SOFTWARE[number]; manufacturer?: typeof PCB_MANUFACTURERS[number]; sides?: typeof PCB_SIDES[number]; kicadMcpInstalled?: boolean }
 export const MANAGERS = ['pnpm', 'npm', 'yarn', 'bun', 'none'] as const;
 export const DATABASES = ['none', 'postgres', 'sqlite', 'mysql', 'mongodb', 'existing'] as const;
 export const DEPLOYMENTS = ['none', 'docker', 'portainer'] as const;
@@ -40,6 +44,7 @@ export interface Config {
   sharedPackages?: string[];
   publishing?: Publishing;
   learningJournal?: boolean;
+  pcb?: PcbConfig;
 }
 
 export function operationDefaults(c: Config): Operations {
@@ -89,7 +94,7 @@ export function migrateConfig(input: unknown): Record<string, unknown> {
 
 export function validateConfig(input: unknown): Config {
   const c = migrateConfig(input);
-  keys(c, ['schemaVersion', 'projectName', 'capabilities', 'packageManager', 'database', 'apps', 'commands', 'deployment', 'workflow', 'operations', 'sharedPackages', 'publishing', 'learningJournal', 'genre', 'preferredAgent'], 'configuration');
+  keys(c, ['schemaVersion', 'projectName', 'capabilities', 'packageManager', 'database', 'apps', 'commands', 'deployment', 'workflow', 'operations', 'sharedPackages', 'publishing', 'learningJournal', 'genre', 'preferredAgent', 'pcb'], 'configuration');
   if (c.schemaVersion !== 2) throw new Error('Unsupported configuration schemaVersion; expected 1 or 2.');
   if (c.learningJournal !== undefined && typeof c.learningJournal !== 'boolean') throw new Error('learningJournal must be a boolean.');
   const capabilities = capabilityList(c.capabilities);
@@ -121,6 +126,20 @@ export function validateConfig(input: unknown): Config {
     workflow: choice(c.workflow, ['validate', 'run-local'], 'workflow')
   };
   if (result.packageManager === 'none' && allScripts(result).length) throw new Error('Package scripts require a package manager.');
+  if (c.pcb !== undefined) {
+    if (result.genre !== 'pcb' && !capabilities.includes('pcb')) throw new Error('PCB settings require the pcb genre or capability.');
+    const pcb = object(c.pcb, 'pcb');
+    keys(pcb, ['software', 'manufacturer', 'sides', 'kicadMcpInstalled'], 'pcb');
+    const software = choice(pcb.software, PCB_SOFTWARE, 'pcb.software');
+    if (pcb.manufacturer !== undefined && software !== 'kicad') throw new Error('pcb.manufacturer requires KiCAD.');
+    result.pcb = { software, ...(pcb.manufacturer !== undefined ? { manufacturer: choice(pcb.manufacturer, PCB_MANUFACTURERS, 'pcb.manufacturer') } : {}) };
+    if (pcb.sides !== undefined) result.pcb.sides = choice(pcb.sides, PCB_SIDES, 'pcb.sides');
+    if (pcb.kicadMcpInstalled !== undefined) {
+      if (software !== 'kicad') throw new Error('pcb.kicadMcpInstalled requires KiCAD.');
+      if (typeof pcb.kicadMcpInstalled !== 'boolean') throw new Error('pcb.kicadMcpInstalled must be a boolean.');
+      result.pcb.kicadMcpInstalled = pcb.kicadMcpInstalled;
+    }
+  }
   if (c.sharedPackages !== undefined && !Array.isArray(c.sharedPackages)) throw new Error('sharedPackages must be an array.');
   result.sharedPackages = [...new Set(((c.sharedPackages ?? []) as unknown[]).map(p => relativePath(p, 'shared package path')))];
   const defaults = operationDefaults(result);

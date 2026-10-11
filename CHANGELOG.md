@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.5.0 — 2026-10-10
+
+### New Features
+
+- Add PCB build selection, KiCAD detection, software and manufacturer questions, and saved single-sided or double-sided copper-layer preferences.
+- Generate a ten-step PCB skill covering vendor-linked BOM sourcing, concept renders, ERC/DRC, manufacturing, and measured bring-up validation.
+- Skip application configuration questions for board-only projects while retaining mixed PCB and firmware guidance.
+- Ask about KiCAD MCP installation and generate system-folder installation, Codex plugin registration, and connection verification guidance for the first agent task.
+
+### Documentation and Release
+
+- Document PCB setup, copper-layer preferences, vendor sourcing, and KiCAD MCP setup; update package and lockfile versions to 1.5.0.
+
 ## 1.4.3 — 2026-10-03
 
 ### Security Improvements

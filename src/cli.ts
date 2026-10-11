@@ -3,6 +3,7 @@ import path from 'node:path';
 import { colorized } from './colorized.js';
 import { completionSummary } from './completion.js';
 import { promptDefaults } from './prompt-defaults.js';
+import { boardOnlyDefaults } from './pcb.js';
 import { resolveLocalConfig, localize, LOCAL_ENV } from './local-settings.js';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -31,13 +32,17 @@ Usage: config-agent-kit [directory] [options]
 
 Options:
   --prompt-mode <mode>   vibe (few questions) or pro (full settings); not persisted
-  --genre <genre>        web,mobile,game,data-science,embedded,service,desktop,library,general
+  --genre <genre>        web,mobile,game,data-science,embedded,service,desktop,library,general,pcb
+  --pcb-software <v>     kicad,jlcone-desktop
+  --pcb-manufacturer <v> jlcpcb,pcbway,microfab (KiCAD only)
+  --pcb-sides <v>        no-preference,single-sided,double-sided (copper layers)
+  --kicad-mcp-installed <v> true or false: reported KiCAD MCP installation status
   --preferred-agent <v>  agnostic,gpt,claude,gemini,llama
   --scaffolder <id>      vite,expo,electron-forge (explicit external execution)
   --framework <id>       Registered template choice for the selected scaffolder
   --config <file>         Read answers from JSON (validated, never executed)
   --name <name>           Override project name
-  --capabilities <list>   Comma-separated web,api,desktop,python,native
+  --capabilities <list>   Comma-separated web,api,desktop,python,native,pcb
   --pm <manager>          pnpm, npm, yarn, bun, none
   --database <kind>       none, postgres, sqlite, mysql, mongodb, existing
   --deployment <kind>     none, docker, portainer
@@ -74,6 +79,8 @@ Exit codes: 0 success, 1 invalid input/doctor errors, 2 file conflicts, 130 canc
 export async function main(argv = process.argv.slice(2), dependencies: { runner?: ScaffoldRunner } = {}): Promise<void> {
   const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, strict: true, options: {
     genre: { type: 'string' }, 'preferred-agent': { type: 'string' }, 'prompt-mode': { type: 'string' }, framework: { type: 'string' }, scaffolder: { type: 'string' },
+    'pcb-software': { type: 'string' }, 'pcb-manufacturer': { type: 'string' }, 'pcb-sides': { type: 'string' },
+    'kicad-mcp-installed': { type: 'string' },
     'dockerhub-username': { type: 'string' }, architecture: { type: 'string' }, config: { type: 'string' }, name: { type: 'string' }, capabilities: { type: 'string' }, pm: { type: 'string' }, database: { type: 'string' }, deployment: { type: 'string' }, host: { type: 'string' }, stack: { type: 'string' }, compose: { type: 'string' }, workflow: { type: 'string' }, yes: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, diff: { type: 'boolean' }, json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean', short: 'v' }
     , 'docker-workflow': { type: 'string' }, 'docker-compose': { type: 'string' }, 'docker-rebuild': { type: 'string' }, electron: { type: 'string' }, 'electron-rebuild': { type: 'string' }, 'portainer-update': { type: 'string' }, changelog: { type: 'string' }, 'credential-source': { type: 'string' }, 'homepage-host': { type: 'string' }, 'homepage-path': { type: 'string' }, interactive: { type: 'boolean' }, 'learning-journal': { type: 'string' }
   } });
@@ -122,6 +129,10 @@ export async function main(argv = process.argv.slice(2), dependencies: { runner?
   const configure = (source: Config): Config => {
     const candidate = structuredClone(source);
     candidate.operations = structuredClone(getOperations(source));
+    if (values.genre === 'pcb' && !detection.capabilitiesKnown && !values.config && command !== 'update' && !values.capabilities) {
+      candidate.capabilities = ['pcb'];
+      boardOnlyDefaults(candidate);
+    }
     if (values.name !== undefined) candidate.projectName = values.name;
     if (values.capabilities !== undefined) {
       candidate.capabilities = values.capabilities.split(',').map(s => s.trim()) as Config['capabilities'];
@@ -170,6 +181,23 @@ export async function main(argv = process.argv.slice(2), dependencies: { runner?
       candidate.learningJournal = values['learning-journal'] === 'true';
     }
     if (values.genre) candidate.genre = values.genre as Genre;
+    if (values.genre && values.genre !== 'pcb' && !candidate.capabilities.includes('pcb')) delete candidate.pcb;
+    if (values['pcb-software'] !== undefined) {
+      const software = values['pcb-software'] as NonNullable<Config['pcb']>['software'];
+      candidate.pcb = { ...candidate.pcb, software };
+      if (software !== 'kicad') { delete candidate.pcb.manufacturer; delete candidate.pcb.kicadMcpInstalled; }
+    }
+    if (values['pcb-manufacturer'] !== undefined || values['pcb-sides'] !== undefined) {
+      candidate.pcb ??= { software: 'kicad' };
+      if (values['pcb-manufacturer'] !== undefined) candidate.pcb.manufacturer = values['pcb-manufacturer'] as NonNullable<Config['pcb']>['manufacturer'];
+      if (values['pcb-sides'] !== undefined) candidate.pcb.sides = values['pcb-sides'] as NonNullable<Config['pcb']>['sides'];
+    }
+    if (values['kicad-mcp-installed'] !== undefined) {
+      const value = values['kicad-mcp-installed'];
+      if (value !== 'true' && value !== 'false') throw new Error('--kicad-mcp-installed must be true or false.');
+      candidate.pcb ??= { software: 'kicad' };
+      candidate.pcb.kicadMcpInstalled = value === 'true';
+    }
     if (values['preferred-agent']) candidate.preferredAgent = values['preferred-agent'] as Config['preferredAgent'];
     return candidate;
   };

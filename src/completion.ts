@@ -21,6 +21,7 @@ export function completionSummary(plan: Plan, scaffoldCompleted = false): string
     `Active guidance: ${roles} roles, ${skills} skills; preferred agent: ${plan.config.preferredAgent}.`,
     ...(scaffoldCompleted ? ['Application starter generated; Agent Kit guidance is configured for the detected project.'] : []),
     'Add custom guidance outside managed markers. Review AGENTS.md before starting work.',
+    ...(plan.config.pcb?.software === 'kicad' || plan.config.genre === 'pcb' && !plan.config.pcb ? ['First PCB agent task: read .agents/skills/pcb-design/SKILL.md, verify KiCAD MCP, and install/connect it in a system tools folder if missing. Follow its Codex plugin setup instructions.'] : []),
     colorized('privacy', 'PRIVACY: Keep secret.agent.env in ignore files. Rules were added to .gitignore and existing .npmignore/.dockerignore files. Add them to any future packaging or deployment ignore files. Already-tracked files must be untracked separately.'),
     colorized('heading', '\nNext commands'),
     colorized('info', 'Check the generated configuration:'),

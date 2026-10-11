@@ -53,6 +53,9 @@ export function detect(root: string): Detection {
   for (const dir of directories) {
     const p = dir === '.' ? pkg : manifest(root, `${dir}/package.json`);
     const caps = capabilitiesFor(p, dir, root);
+    const directoryPath = safePath(root, dir);
+    const boardFiles = exists(directoryPath) ? fs.readdirSync(directoryPath, { withFileTypes: true }).filter(entry => entry.isFile() && !entry.isSymbolicLink() && /\.(kicad_pro|kicad_sch|kicad_pcb)$/i.test(entry.name)).map(entry => path.posix.join(dir, entry.name)) : [];
+    if (boardFiles.length) { caps.push('pcb'); evidence.push(...boardFiles); }
     for (const dep of Object.keys({ ...p?.dependencies, ...p?.devDependencies })) dependencies.add(dep);
     for (const f of ['pyproject.toml', 'requirements.txt', 'setup.py', 'CMakeLists.txt', 'Cargo.toml', 'go.mod']) if (exists(safePath(root, path.posix.join(dir, f)))) evidence.push(path.posix.join(dir, f));
     for (const cap of caps) capabilities.add(cap);
@@ -72,7 +75,7 @@ export function detect(root: string): Detection {
   const lockfiles = [['pnpm-lock.yaml', 'pnpm'], ['package-lock.json', 'npm'], ['yarn.lock', 'yarn'], ['bun.lock', 'bun'], ['bun.lockb', 'bun']] as const;
   const locks = lockfiles.filter(([file]) => exists(safePath(root, file)));
   const declared = pkg?.packageManager?.split('@')[0];
-  const inferred = declared ?? locks[0]?.[1] ?? (workspaceYaml ? 'pnpm' : pkg ? 'npm' : capabilities.has('python') || capabilities.has('native') ? 'none' : 'pnpm');
+  const inferred = declared ?? locks[0]?.[1] ?? (workspaceYaml ? 'pnpm' : pkg ? 'npm' : capabilities.has('python') || capabilities.has('native') || capabilities.has('pcb') ? 'none' : 'pnpm');
   if (new Set(locks.map(l => l[1])).size > 1) warnings.push('Multiple package-manager lockfiles; confirm the intended package manager.');
   if (declared && locks.some(l => l[1] !== declared)) warnings.push('packageManager disagrees with a lockfile.');
   const capabilitiesKnown = capabilities.size > 0;
@@ -99,6 +102,7 @@ export function detect(root: string): Detection {
   const projectName = /^(?:@[a-zA-Z0-9_.-]+\/)?[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(rawName) ? rawName : rawName.toLowerCase().replace(/[^a-z0-9_.-]+/g, '-').replace(/^[^a-z0-9]+/, '') || 'my-project';
   const config = validateConfig({ schemaVersion: 2, genre: inferredGenre ?? 'general', preferredAgent: 'agnostic', projectName, capabilities: CAPABILITIES.filter(c => capabilities.has(c)), packageManager: inferred, database: databases.size === 1 ? [...databases][0] : databases.size ? 'existing' : 'none', apps, commands: { verify: uniqueChecks, ...(scripts.build ? { build: 'build' } : {}), ...(scripts.dev ? { local: 'dev' } : {}) }, deployment: composeFile ? { kind: 'docker', composeFile, ...(stack ? { stackName: stack } : {}) } : { kind: 'none' }, workflow: 'validate' });
   const mappings = { buildApi: 'build:api', buildWeb: 'build:web', buildDesktop: 'build:desktop', electronBuild: 'electron:build', prismaGenerate: 'prisma:generate', dockerBuild: 'docker:build', dockerUp: 'docker:up', publishAll: 'docker:publish:arm64' } as const;
+  if (capabilities.has('pcb')) config.pcb = { software: 'kicad' };
   for (const [key, script] of Object.entries(mappings)) if (scripts[script]) config.commands[key as keyof typeof mappings] = script;
   config.commands.publishServices = Object.fromEntries(Object.keys(scripts).filter(s => /^docker:publish-.+:arm64$/.test(s)).map(s => [s.slice('docker:publish-'.length, -':arm64'.length), s]));
   config.sharedPackages = [...directories].filter(d => d.startsWith('packages/') && exists(safePath(root, `${d}/package.json`)));

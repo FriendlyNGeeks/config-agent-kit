@@ -2,6 +2,7 @@ import { GENRES, GENRE_PROFILES, recommendCapabilities } from './genres.js';
 import { type Config, type Capability } from './config.js';
 import { SCAFFOLD_PROVIDERS, validateSelection, type ScaffoldSelection } from './scaffold.js';
 import { promptSession, terminalIO, type PromptIO } from './prompt-io.js';
+import { boardOnlyDefaults } from './pcb.js';
 
 export type PromptMode = 'vibe' | 'pro';
 export interface SetupOptions { mode?: PromptMode; allowScaffold: boolean; requireScaffold: boolean; capabilitiesKnown: boolean; selection?: ScaffoldSelection }
@@ -16,6 +17,9 @@ export async function setupQuestionnaire(defaults: Config, options: SetupOptions
     });
     config.genre = await pick('What are you building?', GENRES, config.genre, Object.fromEntries(GENRES.map(g => [g, GENRE_PROFILES[g].label])));
     config.capabilities = recommendCapabilities(config.genre, config.capabilities, options.capabilitiesKnown);
+    if (config.genre === 'pcb' && !config.capabilities.includes('pcb')) config.capabilities.push('pcb');
+    if (!options.capabilitiesKnown && config.genre === 'pcb') boardOnlyDefaults(config);
+    if (config.genre !== 'pcb' && !config.capabilities.includes('pcb')) delete config.pcb;
     let selection = options.selection;
     const providers = SCAFFOLD_PROVIDERS.filter(p => p.genres.includes(config.genre));
     if (!selection && options.allowScaffold && (options.requireScaffold || providers.length > 0 && await yesNo('Create application starter files with an upstream generator? Choose no to configure this folder only.', false))) {

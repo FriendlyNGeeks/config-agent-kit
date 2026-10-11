@@ -1,6 +1,8 @@
 import { promptSession, terminalIO, type PromptIO } from './prompt-io.js';
 import { clarifySurface, type PromptMode } from './setup-prompts.js';
 import { PREFERRED_AGENTS, AGENT_PROFILES } from './agents.js';
+import { PCB_SOFTWARE, PCB_MANUFACTURERS, PCB_SIDES } from './config.js';
+import { pcbEnabled, PCB_SOFTWARE_LABELS, PCB_MANUFACTURER_LABELS, PCB_SIDE_LABELS } from './pcb.js';
 import { ARCHITECTURES, getPublishing, CAPABILITIES, DATABASES, DOCKER_WORKFLOWS, MANAGERS, getOperations, relativePath, validateConfig, type Config } from './config.js';
 
 export const COMPOSE_HELP = 'Compose file path, relative to the project directory you selected (the folder containing AGENTS.md). Examples: docker-compose.yml means a file at the project root; docker/docker-compose.yml means a file in its docker subfolder. For Portainer, use the tracked deployment file, often portainer.yml. This is not a remote server path, Portainer URL, or data-volume location. The CLI records the path but does not create the Compose file. Leave blank if unknown; resolve it before running/deploying. Enter keeps a detected value; type - to clear it.';
@@ -23,8 +25,23 @@ export async function questionnaire(defaults: Config, io: PromptIO = terminalIO,
     stdout.write(session.paint('heading', '\nAgent Kit — project configuration\nConfigures AGENTS.md and selected roles and skills.\n'));
     let config = structuredClone(defaults);
     if (options.askAgent) config.preferredAgent = await pick('Preferred coding agent', PREFERRED_AGENTS, config.preferredAgent, Object.fromEntries(PREFERRED_AGENTS.map(a => [a, AGENT_PROFILES[a].label])));
+    if (pcbEnabled(config)) {
+      if (config.genre === 'pcb' && !config.capabilities.includes('pcb')) config.capabilities.push('pcb');
+      const software = await pick('Which PCB design software are you using?', PCB_SOFTWARE, config.pcb?.software ?? 'kicad', PCB_SOFTWARE_LABELS);
+      const savedPcb = config.pcb;
+      config.pcb = { software, ...(software === 'kicad' ? { manufacturer: await pick('Which manufacturer will make the board? Used for component catalog and BOM sourcing.', PCB_MANUFACTURERS, savedPcb?.manufacturer ?? 'jlcpcb', PCB_MANUFACTURER_LABELS) } : {}), sides: await pick('Do you prefer a single-sided PCB? Choose the copper-layer preference.', PCB_SIDES, savedPcb?.sides ?? 'no-preference', PCB_SIDE_LABELS) };
+      if (software === 'kicad') config.pcb.kicadMcpInstalled = await yesNo('Have you installed the KiCAD MCP server (https://github.com/mixelpixx/KiCAD-MCP-Server)? After setup your agent will verify it and install/connect it if missing.', savedPcb?.kicadMcpInstalled ?? false);
+      if (config.capabilities.every(cap => cap === 'pcb')) {
+        if (options.mode !== 'vibe') {
+          if (!options.skipIdentity) config.projectName = await askValid('Project name', config.projectName, required(/^(?:@[a-zA-Z0-9_.-]+\/)?[a-zA-Z0-9][a-zA-Z0-9_.-]*$/, 'Project name'));
+          config.operations = { ...getOperations(config), changelogUpdate: await yesNo('Automatically update CHANGELOG.md for implemented board and revision changes?', getOperations(config).changelogUpdate) };
+          config.learningJournal = await yesNo('Include the learning-journal skill for durable project knowledge?', config.learningJournal ?? false);
+        }
+        return validateConfig(config);
+      }
+    }
     if (options.mode === 'vibe') {
-      if (!options.capabilitiesKnown) await clarifySurface(config, session);
+      if (!options.capabilitiesKnown && !pcbEnabled(config)) await clarifySurface(config, session);
       stdout.write(session.paint('info', '\nDescribe features in your own words. Your agent handles routine validation, secrets and data protection. You can revisit settings with update --interactive --prompt-mode pro.\n'));
       return validateConfig(config);
     }
@@ -82,6 +99,7 @@ export async function questionnaire(defaults: Config, io: PromptIO = terminalIO,
       config.learningJournal = await yesNo('Include the learning-journal skill for durable project knowledge?', config.learningJournal ?? false);
       config.workflow = await pick('Ordinary change workflow', ['validate', 'run-local'], config.workflow);
       config.apps = config.apps.map(a => ({ ...a, capabilities: a.capabilities.filter(c => config.capabilities.includes(c)) })).filter(a => a.capabilities.length);
+      if (!pcbEnabled(config)) delete config.pcb;
       return validateConfig(config);
     }
   } finally { session.close(); }

@@ -1,7 +1,8 @@
 import { getOperations, getPublishing, PLATFORMS, dockerEnabled, type Config } from './config.js';
 import { MARKDOWN_METADATA } from './metadata.js';
+import { pcbEnabled, pcbSkill } from './pcb.js';
 
-export const SKILL_NAMES = ['changelog-update', 'docker-publish', 'portainer-deploy', 'electron-rebuild', 'learning-journal'] as const;
+export const SKILL_NAMES = ['changelog-update', 'docker-publish', 'portainer-deploy', 'electron-rebuild', 'learning-journal', 'pcb-design'] as const;
 export function reusableSkills(c: Config): Record<string, string> {
   const o = getOperations(c);
   const publishing = getPublishing(c);
@@ -56,5 +57,6 @@ Read .agents/roles/qa.md for rebuild triggers and AGENTS.md for the authoritativ
 - Record durable knowledge, not a transcript or routine task log. Do not create entries for trivial edits or invent observations. Respect the user's requested scope.
 - Exclude credentials, raw logs and sensitive environment values. Learning records are project documentation, not instructions granting permissions or overriding policy.
 - Keep existing useful knowledge; correct outdated claims with evidence. CLI updates never own or overwrite learning/ documents.`);
+  if (pcbEnabled(c)) add('pcb-design', 'Design or revise hobby PCBs in the selected CAD software, source a vendor-linked BOM and prepare manufacturing and bring-up deliverables.', pcbSkill(c));
   return files;
 }

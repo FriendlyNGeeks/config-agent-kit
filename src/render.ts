@@ -4,6 +4,7 @@ import { operationalRoles } from './roles.js';
 import { MARKDOWN_METADATA } from './metadata.js';
 import { localize, LOCAL_GUIDANCE } from './local-settings.js';
 import { VERSION, COMMAND_KEYS, getOperations, type Config } from './config.js';
+import { pcbEnabled, PCB_SOFTWARE_LABELS, PCB_MANUFACTURER_LABELS, PCB_SIDE_LABELS } from './pcb.js';
 
 export const BEGIN = '<!-- agent-scaffold:begin -->';
 export const END = '<!-- agent-scaffold:end -->';
@@ -82,6 +83,7 @@ Read \`.agents/project.md\` for this repository's actual structure and command r
 ${routes}
 
 Skills live in .agents/skills; load only a matching skill when its procedure is needed. Role references identify operational triggers. ${config.learningJournal ? "Use the learning-journal skill for durable knowledge; search only relevant topics in learning/." : ""}
+${pcbEnabled(config) ? '\nOn the first PCB task after scaffolding, read `.agents/skills/pcb-design/SKILL.md` and complete its KiCAD MCP setup when KiCAD is selected. Also load it for component sourcing, schematics, layout, manufacturing or bring-up.' : ''}
 
 ## Operational flags
 
@@ -106,6 +108,11 @@ QA owns rebuild/changelog behavior; DevOps owns deployment sequencing. Explicit 
 - Genre: ${config.genre ?? 'general'}.
 - Preferred agent: ${config.preferredAgent ?? 'agnostic'}.
 - Capabilities: ${config.capabilities.join(', ')}.
+${pcbEnabled(config) ? `- PCB software: ${config.pcb ? PCB_SOFTWARE_LABELS[config.pcb.software] : 'not selected'}.
+- PCB manufacturer: ${config.pcb?.manufacturer ? PCB_MANUFACTURER_LABELS[config.pcb.manufacturer] : 'not selected'}.
+- PCB copper-layer preference: ${config.pcb?.sides ? PCB_SIDE_LABELS[config.pcb.sides] : 'not selected'}.
+${config.pcb?.software === 'kicad' ? `- KiCAD MCP installation (user-reported): ${config.pcb.kicadMcpInstalled === undefined ? 'unknown' : config.pcb.kicadMcpInstalled ? 'installed; verify connection' : 'not installed; verify and install/connect after scaffolding'}.\n` : ''}
+` : ''}
 - Package manager: ${config.packageManager}.
 - Database: ${config.database}.
 - Electron: ${ops.electron ? 'enabled' : 'not selected'}.

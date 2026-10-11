@@ -29,7 +29,7 @@ npx config-agent-kit my-api --genre service --capabilities api --database postgr
 | Status | Feature | Description | Priority |
 | --- | --- | --- | --- |
 | ✅ | Prompt mode selection | Vibing for fewer questions or Pro for full configuration. | High |
-| ✅ | Genre selection | Tailor guidance for web, mobile, game, data science, embedded, and other projects. | High |
+| ✅ | Genre selection | Tailor guidance for web, mobile, game, data science, embedded, PCB, and other projects. | High |
 | ✅ | Project scaffolding | Run a supported upstream generator, then configure agent guidance. | High |
 | ✅ | Preferred agent selection | Choose GPT, Claude, Gemini, Llama, or agent-agnostic guidance. | High |
 | ✅ | Terminal color and emphasis | Centralized palette for prompts and results, with plain JSON and configurable color support. | High |
@@ -118,6 +118,7 @@ AGENTS.md
     portainer-deploy/SKILL.md
     electron-rebuild/SKILL.md
     learning-journal/SKILL.md
+    pcb-design/SKILL.md
 ```
 
 Only applicable roles and skills are generated. `AGENTS.md` holds project-wide rules, routing, and the four authoritative policy flags. `project.md` holds project facts and command mappings. Roles define responsibilities, policies, and triggers; skills contain procedures loaded for matching tasks.
@@ -137,6 +138,9 @@ The CLI generates the skill only. It never creates placeholder learning entries 
 These detailed questions appear in Pro mode. Vibing uses detected or conservative defaults and shows a short summary before writing.
 
 - Project name, capabilities, package manager, and database establish the project profile.
+- PCB projects ask for KiCAD or JLCONE Desktop and a single-sided, double-sided, or no-preference copper-layer choice in both prompt modes. KiCAD also asks for JLCPCB, PCBWay, or Microfab as the manufacturing destination for BOM sourcing.
+- KiCAD asks whether the user has installed the KiCAD MCP server. The first agent task verifies the connection and follows installation/plugin setup guidance if needed.
+- Board-only projects skip application package-manager, database, Electron, and Docker questions. Mixed PCB/firmware projects can retain their software capabilities and guidance.
 - Electron enables the Electron rebuild follow-up.
 - Docker yes/no gates local Docker workflow, publication settings, and Portainer questions.
 - Local workflow `none` supports remote-only deployments and skips local Compose and rebuild questions.
@@ -146,6 +150,21 @@ These detailed questions appear in Pro mode. Vibing uses detected or conservativ
 - Changelog, optional learning-journal, and ordinary workflow preferences finish configuration.
 
 Docker architecture maps to `linux/arm64`, `linux/amd64`, and `linux/386`, respectively. Default public image namespace is friendlyngeeks and architecture is arm64. No Docker login credentials are requested or stored.
+
+## PCB projects
+
+~~~powershell
+npx config-agent-kit sensor-board --genre pcb --prompt-mode vibe
+npx config-agent-kit sensor-board --genre pcb --pcb-software kicad --pcb-manufacturer jlcpcb --pcb-sides single-sided --yes
+~~~
+
+The generated `.agents/skills/pcb-design/SKILL.md` covers requirements, block diagrams, preliminary BOM research, mechanical concepts and realistic renders, schematic design, ERC review, layout and routing, DRC and final 3D review, manufacturing, and bring-up/testing/revision. Software, manufacturing destination, and copper-layer preference are saved in `.agents/scaffold.json` and summarized in `.agents/project.md`. Existing KiCAD project, schematic, or board files in inspected project directories are detected automatically. PCB projects have no automatic application scaffolder.
+
+Single-sided means one copper layer; component placement sides are a separate design decision. The skill preserves this preference and requires resolving manufacturability or routing constraints before adding layers.
+
+KiCAD setups record the user's reported MCP installation status separately from actual verification. After scaffolding, the skill directs the agent to check existing tools/configuration, reuse or repair an installed server, and install a missing server following the [KiCAD MCP repository](https://github.com/mixelpixx/KiCAD-MCP-Server) into a persistent system tools folder outside user profiles (for example `C:/MCP/KiCAD-MCP-Server` or `/opt/mcp/KiCAD-MCP-Server`). It includes MCP registration and a local Codex plugin/marketplace procedure using [official OpenAI guidance](https://developers.openai.com/plugins/build/plugins), with read-only connection verification. Agent Kit itself performs no installation or client restart. System permission failures and manual enable/restart steps are reported explicitly.
+
+The skill directs the agent to access the selected manufacturer's official catalog or approved sourcing service, verify datasheets and availability, and record vendor IDs, source URLs, check dates, and assembly status in the BOM. Microfab's exact company and website must be confirmed before sourcing. Agent Kit generates these instructions; it does not fetch catalogs or order boards itself. Missing catalog access leaves a clearly provisional BOM. Noninteractive setup can omit PCB choices; the skill asks for missing selections when work begins.
 
 ## Compose paths
 
@@ -215,12 +234,16 @@ Use `node dist/cli.js --help` for all switches. Key options:
 ```text
 --prompt-mode <mode>            vibe,pro (session only)
 --genre <genre>                 Project taxonomy; general when unknown
+--pcb-software <value>          kicad,jlcone-desktop
+--pcb-manufacturer <value>      jlcpcb,pcbway,microfab (KiCAD only)
+--pcb-sides <value>             no-preference,single-sided,double-sided
+--kicad-mcp-installed <boolean> User-reported installation; agent verifies after setup
 --preferred-agent <agent>       agnostic,gpt,claude,gemini,llama
 --scaffolder <provider>          vite,expo,electron-forge (opt-in)
 --framework <framework>          Provider-specific template choice
 --config <file>                 Validated JSON answers
 --name <name>                   Project name
---capabilities <list>           web,api,desktop,python,native
+--capabilities <list>           web,api,desktop,python,native,pcb
 --pm <manager>                  pnpm,npm,yarn,bun,none
 --database <kind>               none,postgres,sqlite,mysql,mongodb,existing
 --deployment <kind>             none,docker,portainer
